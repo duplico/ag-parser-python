@@ -1,1 +1,1 @@
--record(attack,{attack_id,vulnerability,quality_prs,topology_prs,quality_pos,topology_pos}).
+-record(attack,{attack_id,vulnerability,quality_prs,topology_prs,quality_pos,topology_pos}). 

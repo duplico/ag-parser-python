@@ -1,4 +1,4 @@
--module(AG_Output).
+-module(ag_output).
 -include("networkstate.hrl").
 -include("exploitpattern.hrl").
 -include("attack.hrl").

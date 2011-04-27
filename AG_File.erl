@@ -1,4 +1,4 @@
--module(AG_File).
+-module(ag_file).
 -include("networkstate.hrl").
 -include("exploitpattern.hrl").
 -include("attack.hrl").
@@ -14,11 +14,11 @@
 loadNetworkModelFile(F) ->
   {ok,[{Asset_list,Fact_list}]} = networkmodel_compiler:file(F),
 
-  Assets_table = AG_Table_Management:newAssetsTable(),
-  Qualities_table = AG_Table_Management:newQualitiesTable(qualities),
-  Topologies_table = AG_Table_Management:newTopologiesTable(topologies),
+  Assets_table = ag_table_management:newAssetsTable(),
+  Qualities_table = ag_table_management:newQualitiesTable(qualities),
+  Topologies_table = ag_table_management:newTopologiesTable(topologies),
 
-  State_Id = getNewId(),
+  State_Id = ag_generation:getNewId(),
   lists:foreach(fun(Asset) -> ets:insert(Assets_table,[{State_Id,Asset}]) end,
                         Asset_list),
 
@@ -38,7 +38,7 @@ loadNetworkModelFile(F) ->
                      qualities=Qualities_table,
                      topologies=Topologies_table},
   
-  Network_state_table = AG_Table_Management:newNetworkStateTable(),
+  Network_state_table = ag_table_management:newNetworkStateTable(),
   ets:insert(Network_state_table,[Network_state]),
   {Network_state,Network_state_table,Assets_table,Qualities_table,
    Topologies_table}.
@@ -52,13 +52,13 @@ loadExploitsFile(F) ->
   {ok,[Exploit_list]} = exploit_compiler:file(F),
  io:format("Exploit_list:~n~w~n",[Exploit_list]),
 
-  Exploit_table = AG_Table_Management:newExploitTable(),
+  Exploit_table = ag_table_management:newExploitTable(),
 %Create precondition tables
-  Q_prc_table = AG_Table_Management:newQuality_prcTable(),
-  T_prc_table = AG_Table_Management:newTopology_prcTable(),
+  Q_prc_table = ag_table_management:newQuality_prcTable(),
+  T_prc_table = ag_table_management:newTopology_prcTable(),
 %Create postcondition tables
-  Q_poc_table = AG_Table_Management:newQuality_pocTable(),
-  T_poc_table = AG_Table_Management:newTopology_pocTable(),
+  Q_poc_table = ag_table_management:newQuality_pocTable(),
+  T_poc_table = ag_table_management:newTopology_pocTable(),
 
-  lists:foreach(fun(E) -> AG_Table_Management:loadExploit(E,Exploit_table,Q_prc_table,T_prc_table,Q_poc_table,T_poc_table) end, Exploit_list),
+  lists:foreach(fun(E) -> ag_table_management:loadExploit(E,Exploit_table,Q_prc_table,T_prc_table,Q_poc_table,T_poc_table) end, Exploit_list),
   Exploit_table.

@@ -1,4 +1,4 @@
--module(AG_Generation).
+-module(ag_generation).
 -include("networkstate.hrl").
 -include("exploitpattern.hrl").
 -include("attack.hrl").
@@ -106,10 +106,10 @@ computeNextStates(AL,N,Network_state_table,Assets_table,Qualities_table,
 %           2) Add Vertex for New_state and Edge for Attack to attack graph
 %      _ (#networkstate.state_id; matching state found) =>
 %           Add edge for network state from findNetworkState to attack graph 
-               S = findNetworkState(New_state,Network_state_table),
+               S = ag_table_management:findNetworkState(New_state,Network_state_table),
                case S of
                   false -> Installed_network_state = 
-                             AG_Table_Management:installNetworkState(Network_state_table,New_state,
+                             ag_table_management:installNetworkState(Network_state_table,New_state,
                               Assets_table,Qualities_table,Topologies_table),
                            V2 = digraph:add_vertex(AG,Installed_network_state),
                            digraph:add_edge(AG,V,V2,A),
@@ -325,7 +325,7 @@ checkNetworkState(Network_state,Attack) ->
 testAttack(Network_state, Attack) ->
   case checkNetworkState(Network_state,Attack) of
     true -> true;
-    false -> deleteAttackElements(Attack), false
+    false -> ag_table_management:deleteAttackElements(Attack), false
   end.
 
 %PARAMETER BINDING FUNCTIONS

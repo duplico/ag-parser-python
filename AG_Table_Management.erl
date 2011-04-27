@@ -1,8 +1,8 @@
--module(AG_Table_Management).
+-module(ag_table_management).
 -include("networkstate.hrl").
 -include("exploitpattern.hrl").
 -include("attack.hrl").
--export([installNetworkState/5,findNetworkState/2,exploitListfromTable/1,loadExploit/2,deleteAttackElements/1,
+-export([installNetworkState/5,findNetworkState/2,exploitListfromTable/1,loadExploit/6,deleteAttackElements/1,
 newAssetsTable/0,newQualitiesTable/1,newTopologiesTable/1,newNetworkStateTable/0,newTableVertexIndex/0,
 newQuality_prsTable/0,newTopology_prsTable/0,newQuality_posTable/0,newTopology_posTable/0,
 newQuality_prcTable/0,newTopology_prcTable/0,newQuality_pocTable/0,newTopology_pocTable/0,
@@ -38,7 +38,7 @@ installNetworkState(Network_state_table,#networkstate{state_id=State_id,
 %   compares assets, qualities and topologies 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 findNetworkState(N,Network_state_table) ->
-  ets:foldl(fun(X,N_acc) -> case equalsNetworkStateTmp(N,X) of
+  ets:foldl(fun(X,N_acc) -> case ag_generation:equalsNetworkStateTmp(N,X) of
                            true -> X#networkstate.state_id;
                            false -> N_acc
                       end
@@ -64,7 +64,7 @@ exploitListfromTable(Exploit_table) ->
 loadExploit(E,Exploit_table,Q_prc_table,T_prc_table,Q_poc_table,T_poc_table) ->
  {Exploit_name,Param_list,Precondition_list,Postcondition_list} = E,
 
-  Exploit_Id = getNewId(),
+  Exploit_Id = ag_generation:getNewId(),
 %Create precondition tables
 % Q_prc_table = newQuality_prcTable(),
 % T_prc_table = newTopology_prcTable(),

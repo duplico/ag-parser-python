@@ -26,7 +26,7 @@ relop = oneOf('== != >= <=')
 topology_fact = Literal('topology')('type') + colon + atom('source') + \
                 oneOf('-> <->')('direction') + atom('dest') + comma + \
                 atom('name') + \
-                Optional((relop | assignop)('operator') + real('value)) + semi
+                Optional((relop | assignop)('operator') + real('value')) + semi
 quality_fact = Literal('quality')('type') + colon + atom('asset') + comma + \
                atom('name') + (relop | assignop)('operator') + atom('value') + \
                semi

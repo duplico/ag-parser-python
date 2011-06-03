@@ -2,7 +2,7 @@
 
 from pyparsing import Word, Suppress, Literal, \
     alphanums, oneOf, ZeroOrMore, OneOrMore, Combine, Group, \
-    delimitedList, Regex
+    delimitedList, Regex, Optional
 
 # reserved = ['topology', 'quality', 'network', 'model', 'assets', 'facts', \
 #             'insert', 'delete', 'exploit', 'preconditions', 'postconditions',\

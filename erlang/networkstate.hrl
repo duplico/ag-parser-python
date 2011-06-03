@@ -1,0 +1,3 @@
+-record(quality,{state_id,asset_prop,value}).
+-record(topology,{state_id,assets,relationship}).
+-record(networkstate,{state_id,assets,qualities,topologies}).

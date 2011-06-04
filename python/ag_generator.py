@@ -2,14 +2,15 @@ import sys
 import ag_parser
 import itertools
 import operator
-
-exploit_dict = {}
+import networkx as nx
 
 # Network state:
 # ((asset frozenset of strings), (fact frozenset of tuples))
 # Fact tuple: ('quality', asset, name, value)
 # Fact tuple: ('topology', asset1, asset2, name[, value])
 
+# TODO: There would probably be some performance benefits to making these
+# immutable:
 class NetworkModel(object):
     class Asset(object):
         def __init__(self, name):
@@ -94,11 +95,12 @@ class NetworkModel(object):
             return False
     
     def __init__(self, netstate):
-        existing_states[netstate] = self
+        NetworkModel.existing_states[netstate] = self
         self.netstate = netstate # Takes the canonical, hashable format
         self.assets = {} # Dictionary of Asset objects, for convenience.
+        self.needs_regen = False
         for asset in netstate[0]:
-            self.assets[asset] = asset_obj(asset)
+            self.assets[asset] = NetworkModel.Asset(asset)
         for fact in netstate[1]:
             if fact[0] == 'quality':
                 self.update_regen(self.assets[fact[1]].set_quality(fact[2],
@@ -135,14 +137,43 @@ class NetworkModel(object):
             return self.netstate
         else:
             self.needs_regen = False
-            facts = frozenset(reduce(operator.add, [asset.get_facts for asset
-                                                     in self.assets]))
+            factsets = [asset.get_facts() for asset in self.assets.values()]
+            facts = frozenset(set.union(*factsets))
             assets = frozenset([asset for asset in self.assets])
             self.netstate = (assets, facts)
             return self.netstate
-            
+    
+    def validate_attack(self, attack, exploit_dict):
+        # attack takes the form (exploit_name (binding_tuple))
+        # Fact tuple: ('quality', asset, name, value)
+        # Fact tuple: ('topology', asset1, asset2, name[, value])
+        exploit = exploit_dict[attack[0]]
+        binding_dict = {}
+        for i in range(len(exploit.params)):
+            binding_dict[exploit.params[i]] = attack[1][i]
+        # These conditions are all WAY too simplistic for the hybrid extensions:
+        for precondition in exploit.preconditions:
+            if precondition.type == 'quality':
+                fact = ('quality', binding_dict[precondition.asset],
+                        precondition.name, precondition.value)
+                if fact not in self.to_netstate()[1]:
+                    return False
+            elif precondition.type == 'topology':
+                fact = ('topology', binding_dict[precondition.source],
+                        binding_dict[precondition.dest], precondition.name)
+                if fact not in self.to_netstate()[1]:
+                    return False
+                if precondition.direction == '<->': # Test opposite direction?
+                    fact = ('topology', binding_dict[precondition.source],
+                            binding_dict[precondition.dest], precondition.name)
+                    if fact not in self.to_netstate()[1]:
+                        return False
+            else:
+                return False
+        return True
 
-def get_attack_bindings(network_model):
+# TODO: replace the param tuple with a dictionary?
+def get_attack_bindings(network_model, exploit_dict):
     """
     Return format is (exploit name, (param tuple))
     """
@@ -162,27 +193,46 @@ def get_attack_bindings(network_model):
         attacks += map(lambda a: (exploit_name, a), param_bindings)
     return attacks
 
-def get_successor_state(network_state, attack):
-    successor_assets = network_state
-    pass
+def get_successor_state(network_state, attack, exploit_dict):
+    successor_assets = network_state[0]
+    network_model = NetworkModel(network_state)
+    for postcondition in exploit_dict[attack[0]].postconditions:
+        print postcondition
+        if postcondition.operation == 'insert':
+            pass
+        elif postcondition.operation == 'delete':
+            if postcondition.type == 'topology':
+                pass
+            elif postcondition.type == 'quality':
+                pass
 
-def get_attacks(network_state):
-    pass
+def get_attacks(network_model, exploit_dict, attack_bindings):
+    return [attack for attack in attack_bindings \
+            if network_model.validate_attack(attack, exploit_dict)]
 
-def generate_attack_graph(analysis_states, depth):
+def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
+                          attack_graph=None):
+    if not attack_graph:
+        attack_graph = nx.Graph()
     if len(analysis_states) == 0 or depth == 0:
-        return # Ideally we should return something here.
+        return attack_graph
     successor_states = []
     # For each state to be processed for successors
     for analysis_state in analysis_states:
+        analysis_model = NetworkModel(analysis_state)
+        if analysis_state not in attack_graph:
+            attack_graph.add_node(analysis_state)
         # For each valid attack in that state
-        for attack in get_attacks(analysis_state):            
-            successor_state = get_successor_state(analysis_state, attack)
+        for attack in get_attacks(analysis_model, exploit_dict,
+                                  attack_bindings):
+            successor_state = get_successor_state(analysis_state, attack,
+                                                  exploit_dict)
             # if successor_state in attack_graph:
                 # pass
             # else:
                 # successor_states += [successor_state]
-    generate_attack_graph(next_states, depth-1)
+    return generate_attack_graph(successor_states, depth-1, exploit_dict,
+                                 attack_bindings, attack_graph)
 
 # TODO: This is currently totally discrete:
 def nsfactlist_from_nm(netmodel):
@@ -197,6 +247,7 @@ def nsfactlist_from_nm(netmodel):
             if netmodel_fact.direction == '<->':
                 factlist.append((netmodel_fact.type, netmodel_fact.dest,
                                  netmodel_fact.source, netmodel_fact.name))
+    return factlist
 
 def ns_from_nm(netmodel):
     assets = frozenset(netmodel.assets)
@@ -206,10 +257,12 @@ def ns_from_nm(netmodel):
 def main(nm_file, xp_file):
     netmodel = ag_parser.networkmodel.parseFile(nm_file)
     exploits = ag_parser.exploits.parseFile(xp_file)
-    global exploit_dict
+    exploit_dict = {}
     for exploit in exploits:
         exploit_dict[exploit.name] = exploit
-    initial_network_state = ()
+    initial_network_state = ns_from_nm(netmodel)
+    generate_attack_graph([initial_network_state,], 5, exploit_dict,
+        get_attack_bindings(netmodel, exploit_dict))
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:

@@ -3,6 +3,7 @@ import ag_parser
 import itertools
 import operator
 import networkx as nx
+import matplotlib.pyplot as plt
 
 # Network state:
 # ((asset frozenset of strings), (fact frozenset of tuples))
@@ -144,13 +145,11 @@ class NetworkModel(object):
             return self.netstate
     
     def validate_attack(self, attack, exploit_dict):
-        # attack takes the form (exploit_name (binding_tuple))
+        # attack takes the form (exploit_name (binding_dict))
         # Fact tuple: ('quality', asset, name, value)
         # Fact tuple: ('topology', asset1, asset2, name[, value])
         exploit = exploit_dict[attack[0]]
-        binding_dict = {}
-        for i in range(len(exploit.params)):
-            binding_dict[exploit.params[i]] = attack[1][i]
+        binding_dict = attack[1]
         # These conditions are all WAY too simplistic for the hybrid extensions:
         for precondition in exploit.preconditions:
             if precondition.type == 'quality':
@@ -172,10 +171,9 @@ class NetworkModel(object):
                 return False
         return True
 
-# TODO: replace the param tuple with a dictionary?
 def get_attack_bindings(network_model, exploit_dict):
     """
-    Return format is (exploit name, (param tuple))
+    Return format is (exploit name, {param : binding, ...})
     """
     assets = network_model.assets
     attacks = []
@@ -190,21 +188,35 @@ def get_attack_bindings(network_model, exploit_dict):
                                                      len(exploit.params)))
         
         # Append the exploit name with these bindings to the list of attacks:
-        attacks += map(lambda a: (exploit_name, a), param_bindings)
+        attacks += map(lambda a: (exploit_name, dict(zip(exploit.params, a))),
+                       param_bindings)
     return attacks
 
 def get_successor_state(network_state, attack, exploit_dict):
     successor_assets = network_state[0]
     network_model = NetworkModel(network_state)
+    binding_dict = attack[1]
     for postcondition in exploit_dict[attack[0]].postconditions:
-        print postcondition
         if postcondition.operation == 'insert':
-            pass
+            if postcondition.type == 'topology':
+                network_model.set_topology(binding_dict[postcondition.source],
+                                           binding_dict[postcondition.dest],
+                                           postcondition.name)
+            elif postcondition.type == 'quality':
+                network_model.set_quality(binding_dict[postcondition.asset],
+                                          postcondition.name,
+                                          postcondition.value)
         elif postcondition.operation == 'delete':
             if postcondition.type == 'topology':
-                pass
+                network_model.del_topology(binding_dict[postcondition.source],
+                                           binding_dict[postcondition.dest],
+                                           postcondition.name)
             elif postcondition.type == 'quality':
-                pass
+                network_model.del_quality(binding_dict[postcondition.asset],
+                                          postcondition.name)
+        else:
+            assert(False) # Should be unreachable.
+    return network_model.to_netstate()
 
 def get_attacks(network_model, exploit_dict, attack_bindings):
     return [attack for attack in attack_bindings \
@@ -213,7 +225,7 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
 def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                           attack_graph=None):
     if not attack_graph:
-        attack_graph = nx.Graph()
+        attack_graph = nx.MultiDiGraph()
     if len(analysis_states) == 0 or depth == 0:
         return attack_graph
     successor_states = []
@@ -227,10 +239,15 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                                   attack_bindings):
             successor_state = get_successor_state(analysis_state, attack,
                                                   exploit_dict)
-            # if successor_state in attack_graph:
-                # pass
-            # else:
-                # successor_states += [successor_state]
+            print "Analysis state: %s\nAttack: %s\nSuccessor state: %s\n" % \
+                (analysis_state, attack, successor_state)
+            print analysis_state == successor_state
+            if successor_state in attack_graph:
+                pass
+            else:
+                successor_states.append(successor_state)
+            attack_graph.add_edge(analysis_state, successor_state,
+                                  object=attack)
     return generate_attack_graph(successor_states, depth-1, exploit_dict,
                                  attack_bindings, attack_graph)
 
@@ -261,7 +278,8 @@ def main(nm_file, xp_file):
     for exploit in exploits:
         exploit_dict[exploit.name] = exploit
     initial_network_state = ns_from_nm(netmodel)
-    generate_attack_graph([initial_network_state,], 5, exploit_dict,
+    global ag
+    ag = generate_attack_graph([initial_network_state,], 6, exploit_dict,
         get_attack_bindings(netmodel, exploit_dict))
 
 if __name__ == '__main__':

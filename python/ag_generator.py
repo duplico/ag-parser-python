@@ -5,6 +5,8 @@ import operator
 import networkx as nx
 import matplotlib.pyplot as plt
 
+DEBUG = True
+
 # Network state:
 # ((asset frozenset of strings), (fact frozenset of tuples))
 # Fact tuple: ('quality', asset, name, value)
@@ -231,6 +233,7 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
     successor_states = []
     # For each state to be processed for successors
     for analysis_state in analysis_states:
+        if DEBUG: print "Analysis state: %s" % str(analysis_state)
         analysis_model = NetworkModel(analysis_state)
         if analysis_state not in attack_graph:
             attack_graph.add_node(analysis_state)
@@ -239,9 +242,11 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                                   attack_bindings):
             successor_state = get_successor_state(analysis_state, attack,
                                                   exploit_dict)
-            print "Analysis state: %s\nAttack: %s\nSuccessor state: %s\n" % \
-                (analysis_state, attack, successor_state)
-            print analysis_state == successor_state
+            if successor_state == analysis_state:
+                continue
+            if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s\n%s" % \
+                (attack, exploit_dict[attack[0]], successor_state,
+                 str(analysis_state == successor_state))
             if successor_state in attack_graph:
                 pass
             else:
@@ -271,19 +276,22 @@ def ns_from_nm(netmodel):
     facts = frozenset(nsfactlist_from_nm(netmodel))
     return (assets, facts)
 
-def main(nm_file, xp_file):
+def build_attack_graph(nm_file, xp_file, depth):
     netmodel = ag_parser.networkmodel.parseFile(nm_file)
     exploits = ag_parser.exploits.parseFile(xp_file)
     exploit_dict = {}
     for exploit in exploits:
         exploit_dict[exploit.name] = exploit
     initial_network_state = ns_from_nm(netmodel)
+    return generate_attack_graph([initial_network_state,], depth, exploit_dict,
+                                 get_attack_bindings(netmodel, exploit_dict))
+
+def main(nm_file, xp_file, depth):    
     global ag
-    ag = generate_attack_graph([initial_network_state,], 6, exploit_dict,
-        get_attack_bindings(netmodel, exploit_dict))
+    ag = build_attack_graph(nm_file, xp_file, int(depth))
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print 'usage: python ag_generator.py nmfile xpfile'
+    if len(sys.argv) != 4:
+        print 'usage: python ag_generator.py nmfile xpfile depth'
         sys.exit(1)
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])

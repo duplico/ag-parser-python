@@ -1,2 +1,5 @@
 relre:.beam$
 relre:pyc$
+relre:\.dot$
+relre:\.dot\.pdf$
+relre:\.pdf$

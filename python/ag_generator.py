@@ -151,6 +151,13 @@ class NetworkModel(object):
             Returns the facts about (from) this asset in a nonfrozen set.
             """
             return self.factset
+        
+        def __str__(self):
+            ret = self.name
+            for fact in self.factset:
+                if fact[0] == 'quality':
+                    ret += '\nq:%s=%s' % (fact[2], fact[3])
+            return ret
     
     def __init__(self, netstate):
         """
@@ -280,6 +287,19 @@ class NetworkModel(object):
             else:
                 return False
         return True
+    
+    def get_state_graph(self, label=False):
+        state_graph = nx.MultiDiGraph()
+        for asset in self.assets:
+            node_label = str(self.assets[asset])
+            if label:
+                node_label = label + ':' + node_label
+            state_graph.add_node(asset, label=node_label)
+        for asset in self.assets:
+            for fact in self.assets[asset].get_facts():
+                if fact[0] == 'topology':
+                    state_graph.add_edge(fact[1],fact[2],label=fact[3])
+        return state_graph
 
 def get_attack_bindings(network_model, exploit_dict):
     """
@@ -305,6 +325,13 @@ def get_attack_bindings(network_model, exploit_dict):
         attacks += map(lambda a: (exploit_name, dict(zip(exploit.params, a))),
                        param_bindings)
     return attacks
+
+def get_pretty_attack(attack, exploit_dict):
+    exploit = exploit_dict[attack[0]]
+    params = []
+    for formal_parameter in exploit.params:
+        params.append(attack[1][formal_parameter])
+    return '%s(%s)' % (attack[0], ','.join(params))
 
 def get_successor_state(network_state, attack, exploit_dict):
     """
@@ -356,7 +383,7 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
             if network_model.validate_attack(attack, exploit_dict)]
 
 def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
-                          attack_graph=None):
+                          attack_graph=None, next_label=0):
     """
     Recursively generate an attack graph, to a given depth.
     
@@ -400,7 +427,8 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
         
         # Add it to the attack graph as a node if we need to (i.e. start state)
         if analysis_state not in attack_graph:
-            attack_graph.add_node(analysis_state)
+            attack_graph.add_node(analysis_state, label=next_label)
+            next_label+=1
 
         # For each valid attack in that state:
         for attack in get_attacks(analysis_model, exploit_dict,
@@ -419,20 +447,20 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                  str(analysis_state == successor_state))
             
             # If the successor state does not exist, add it to the list to
-            # be analyzed on the next iteration.
+            # be analyzed on the next iteration and the attack graph.
             if successor_state in attack_graph:
                 pass
             else:
                 successor_states.append(successor_state)
+                attack_graph.add_node(successor_state, label=next_label)
+                next_label+=1
             
-            # Add the state transition to the attack graph (this will also
-            # automatically add the states themselves as nodes if they are
-            # not already in the graph)
+            # Add the state transition to the attack graph
             attack_graph.add_edge(analysis_state, successor_state,
-                                  object=attack)
+                                  label=get_pretty_attack(attack, exploit_dict))
     # Recur (wouldn't tail call optimization be nice?)
     return generate_attack_graph(successor_states, depth-1, exploit_dict,
-                                 attack_bindings, attack_graph)
+                                 attack_bindings, attack_graph, next_label)
 
 # TODO: This is currently totally discrete:
 def nsfactlist_from_nm(netmodel):
@@ -474,11 +502,23 @@ def build_attack_graph(nm_file, xp_file, depth):
                                  get_attack_bindings(netmodel, exploit_dict))
 
 def main(nm_file, xp_file, depth):    
+    outname = 'ag_%s/ag_depth%i.dot' % (nm_file.split('.')[0], depth)
     global ag
     ag = build_attack_graph(nm_file, xp_file, int(depth))
+    nx.write_dot(ag, outname)
+    stategraphs = []
+    for node in ag.node:
+        node_out_name = 'ag_%s/nm_state%i.dot' % (nm_file.split('.')[0],
+                                                ag.node[node]['label'])
+        netmodel = NetworkModel(node)
+        stategraph = netmodel.get_state_graph(str(ag.node[node]['label']))
+        nx.write_dot(stategraph, node_out_name)
+        stategraphs.append(stategraph)
+    stategraphs_union = reduce(nx.disjoint_union, stategraphs)
+    nx.write_dot(stategraphs_union, 'ag_%s/ag_sg_depth%i.dot' % (nm_file.split('.')[0], depth))
 
 if __name__ == '__main__':
     if len(sys.argv) != 4:
         print 'usage: python ag_generator.py nmfile xpfile depth'
         sys.exit(1)
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    main(sys.argv[1], sys.argv[2], int(sys.argv[3]))

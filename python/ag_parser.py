@@ -10,7 +10,11 @@ from pyparsing import Word, Suppress, Literal, \
 
 real = Regex(r"[+-]?\d+(\.\d*)?").setParseAction(lambda t: float(t[0]))
 
-atom = Word(alphanums+"_:/")
+plain_atom = Word(alphanums+"-.+_~")
+percent_atom = Word(alphanums+"-.+_~%")
+atom = plain_atom | percent_atom
+cpe_type = Word('aho', exact=1)
+language_tag = plain_atom # TODO: RFC 4646 compliance
 dot = Suppress('.')
 semi = Suppress(';')
 colon = Suppress(':')
@@ -23,6 +27,13 @@ relop = oneOf('== != >= <=')
 
 # Shared grammar elements
 
+cpe = Suppress(Literal('cpe:/')) + cpe_type('type') + colon + atom('vendor') +\
+        Optional(colon + atom('product') +\
+        Optional(colon + atom('version') +\
+        Optional(colon + atom('update') +\
+        Optional(colon + atom('edition') +\
+        Optional(colon + language_tag('lang'))))))
+
 topology_fact = Literal('topology')('type') + colon + atom('source') + \
                 oneOf('-> <->')('direction') + atom('dest') + comma + \
                 atom('name') + \
@@ -30,7 +41,9 @@ topology_fact = Literal('topology')('type') + colon + atom('source') + \
 quality_fact = Literal('quality')('type') + colon + atom('asset') + comma + \
                atom('name') + (relop | assignop)('operator') + atom('value') + \
                semi
-fact = topology_fact | quality_fact
+platform_fact = Literal('platform')('type') + colon + atom('asset') + comma + \
+               cpe('platform') + semi
+fact = topology_fact | quality_fact | platform_fact
 
 # Network model parser
 
@@ -48,8 +61,10 @@ networkmodel = Combine(Literal('network') + Literal('model'), joinString=' ', \
 factop = oneOf('insert delete update')('operation') + fact
 exploit = Suppress('exploit') + atom('name') + lpar + \
           Group(delimitedList(atom))('params') + rpar + Suppress('=') + \
-          'preconditions' + colon + Group(ZeroOrMore(Group(fact)))('preconditions') + \
-          'postconditions' + colon + Group(ZeroOrMore(Group(factop)))('postconditions') + dot
+          'preconditions' + colon + \
+          Group(ZeroOrMore(Group(fact)))('preconditions') + \
+          'postconditions' + colon + \
+          Group(ZeroOrMore(Group(factop)))('postconditions') + dot
 exploits = OneOrMore(Group(exploit))
 # TODO: preconditions: no assignops allowed
 # TODO: postconditions: no relops allowed

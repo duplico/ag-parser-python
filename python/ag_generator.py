@@ -15,7 +15,7 @@ import ag_parser
 import itertools
 import operator
 import networkx as nx
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 DEBUG = True
 

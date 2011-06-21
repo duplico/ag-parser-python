@@ -10,9 +10,10 @@ from pyparsing import Word, Suppress, Literal, \
 
 real = Regex(r"[+-]?\d+(\.\d*)?").setParseAction(lambda t: float(t[0]))
 
+cpe_valid_characters = alphanums+"-.+_~%"
 plain_atom = Word(alphanums+"-.+_~")
-percent_atom = Word(alphanums+"-.+_~%")
-atom = plain_atom | percent_atom
+atom = Word(alphanums+".+_~%")
+empty_atom = Word(alphanums)
 cpe_type = Word('aho', exact=1)
 language_tag = plain_atom # TODO: RFC 4646 compliance
 dot = Suppress('.')
@@ -22,34 +23,60 @@ comma = Suppress(',')
 lpar = Suppress('(')
 rpar = Suppress(')')
 
-assignop = oneOf('= := += -= *= /=')
-relop = oneOf('== != >= <=')
+real_assignop = oneOf(':= += -= *= /=')
+tok_assignop = Literal('=')
+real_relop = oneOf('== <> >= <= > <')
+tok_relop = oneOf('= !=')
 
 # Shared grammar elements
 
-cpe = Suppress(Literal('cpe:/')) + cpe_type('type') + colon + atom('vendor') +\
-        Optional(colon + atom('product') +\
-        Optional(colon + atom('version') +\
-        Optional(colon + atom('update') +\
-        Optional(colon + atom('edition') +\
-        Optional(colon + language_tag('lang'))))))
+cpe = Suppress(Literal('cpe:/')) +\
+        Optional(Optional(cpe_type)('type') +\
+        Optional(colon + Optional(atom)('vendor') +\
+        Optional(colon + Optional(atom)('product') +\
+        Optional(colon + Optional(atom)('version') +\
+        Optional(colon + Optional(atom)('update') +\
+        Optional(colon + Optional(atom)('edition') +\
+        Optional(colon + Optional(language_tag)('lang'))))))))
 
-topology_fact = Literal('topology')('type') + colon + atom('source') + \
+topology_decl = Literal('topology')('type') + colon + atom('source') + \
                 oneOf('-> <->')('direction') + atom('dest') + comma + \
-                atom('name') + \
-                Optional((relop | assignop)('operator') + real('value')) + semi
-quality_fact = Literal('quality')('type') + colon + atom('asset') + comma + \
-               atom('name') + (relop | assignop)('operator') + atom('value') + \
-               semi
+                atom('name')
+
+quality_decl = Literal('quality')('type') + colon + atom('asset') + \
+                comma + atom('name')
+
+# Topology relational fact: may either state a topology (token) or operate
+# on its value (real)
+topology_relfact = topology_decl + Optional(real_relop('operator') + \
+                                            atom('value')) + semi
+
+# Topology assignment fact: may either state a topology (token) or operate on
+# its value (real)
+topology_assignfact = topology_decl + Optional(real_assignop('operator') + \
+                                               atom('value')) + semi
+
+# Quality relational fact: may test on either the token relations (=, !=) or
+# the real relations (==, <>, >=, <=)
+quality_relfact = quality_decl + tok_relop('operator') + atom('value') + semi | \
+                  quality_decl + real_relop('operator') + real('value') + semi
+
+# Quality assignment fact: may either assign a token value (=) or a real value
+# (:=, +=, -=, *=, /=)
+quality_assignfact = quality_decl + tok_assignop('operator') + atom('value') + semi | \
+                     quality_decl + real_assignop('operator') + real('value') + semi
+
+# There's only one kind of platform fact
 platform_fact = Literal('platform')('type') + colon + atom('asset') + comma + \
                cpe('platform') + semi
-fact = topology_fact | quality_fact | platform_fact
+
+assignfact = topology_assignfact | quality_assignfact | platform_fact
+relfact = topology_relfact | quality_relfact | platform_fact
 
 # Network model parser
 
 assetlist = 'assets' + colon + Group(OneOrMore(atom + semi))('assets')
-factlist = 'facts' + colon + Group(ZeroOrMore(Group(fact)))('facts')
-# TODO: Assert that the assignops are all '=' or ':=', no relops allowed
+factlist = 'facts' + colon + Group(ZeroOrMore(Group(assignfact)))('facts')
 
 networkmodel = Combine(Literal('network') + Literal('model'), joinString=' ', \
                        adjacent=False) + \
@@ -58,21 +85,17 @@ networkmodel = Combine(Literal('network') + Literal('model'), joinString=' ', \
 
 # Parser for exploit patterns
 
-factop = oneOf('insert delete update')('operation') + fact
+factop = oneOf('insert delete update')('operation') + assignfact
 exploit = Suppress('exploit') + atom('name') + lpar + \
           Group(delimitedList(atom))('params') + rpar + Suppress('=') + \
           'preconditions' + colon + \
-          Group(ZeroOrMore(Group(fact)))('preconditions') + \
+          Group(ZeroOrMore(Group(relfact)))('preconditions') + \
           'postconditions' + colon + \
           Group(ZeroOrMore(Group(factop)))('postconditions') + dot
 exploits = OneOrMore(Group(exploit))
-# TODO: preconditions: no assignops allowed
-# TODO: postconditions: no relops allowed
 
 # Parser for state predicates
-
 statepredicate = Combine(Literal('state') + Literal('predicate'), joinString=' ', \
                          adjacent=False) + \
-                 Suppress('=') + assetlist + factlist + \
-                 dot
-# TODO: no assignops allowed
+                 Suppress('=') + assetlist + \
+                 Group(ZeroOrMore(Group(relfact)))('facts') + dot

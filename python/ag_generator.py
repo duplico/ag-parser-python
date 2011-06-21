@@ -37,6 +37,7 @@ class NetworkModel(object):
     Network state: ((asset frozenset of strings), (frozenset of fact tuples))
     For qualities: ('quality', asset, name, value)
     For topologies: ('topology', asset1, asset2, name)
+    For platforms: ('platform', asset, name, tuple(name.split(':')))
     
     The mutability of a NetworkModel is not guaranteed for perpetuity; its
     functionality MAY change for performance reasons.
@@ -51,6 +52,7 @@ class NetworkModel(object):
             self.qualities = {}
             self.topologies = {}
             self.factset = set()
+            self.platforms = set()
         
         def get_quality(self, name):
             """
@@ -94,6 +96,21 @@ class NetworkModel(object):
             else:
                 # No fact to delete
                 return False # Not changed.
+        
+        def set_platform(self, platform):
+            # Platform is a tuple.
+            pass
+        
+        def del_platform(self, platform):
+            # Platform is a tuple.
+            pass
+        
+        def has_platform(self, platform):
+            # Platform is a tuple
+            for cpe in self.platforms:
+                if len(cpe) >= len(platform):
+                    ret = False
+                    
         
         def get_topology(self, dest, name):
             """
@@ -154,9 +171,15 @@ class NetworkModel(object):
         
         def __str__(self):
             ret = self.name
+            qstring = ''
+            pstring = ''
             for fact in self.factset:
                 if fact[0] == 'quality':
-                    ret += '\nq:%s=%s' % (fact[2], fact[3])
+                    qstring += '\nq:%s=%s' % (fact[2], fact[3])
+                elif fact[0] == 'platform':
+                    pstring += '\n%s' % fact[2] # TODO
+            ret+=qstring
+            ret+=pstring
             return ret
     
     def __init__(self, netstate):
@@ -179,6 +202,8 @@ class NetworkModel(object):
             elif fact[0] == 'topology':
                 self.update_regen(self.assets[fact[1]].set_topology(fact[2],
                                                                     fact[3]))
+            elif fact[0] == 'platform':
+                self.update_regen(self.assets[fact[1]].set_platform[fact[3]])
         
         self.needs_regen = False # As constructed, this object is up to date.
     
@@ -213,6 +238,9 @@ class NetworkModel(object):
         """
         self.update_regen(self.assets[source].set_topology(dest, name))
     
+    def set_platform(self, asset, cpe_tuple):
+        self.update_regen(self.assets[asset].set_platform(cpe_tuple))
+    
     def del_quality(self, asset, name):
         """
         Deletes a quality on an asset.
@@ -224,6 +252,9 @@ class NetworkModel(object):
         Deletes a one-way topology.
         """
         self.update_regen(self.assets[source].del_topology(dest, name))
+    
+    def del_platform(self, asset, cpe_tuple):
+        self.update_regen(self.assets[asset].del_platform(cpe_tuple))
     
     def to_netstate(self):
         """

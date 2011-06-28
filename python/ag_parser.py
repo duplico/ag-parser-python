@@ -29,7 +29,7 @@ tok_relop = oneOf('= !=')
 # Shared grammar elements
 
 cpe = Suppress(Literal('cpe:/')) +\
-        Optional(Optional(cpe_type)('type') +\
+        Optional(Optional(cpe_type)('component_type') +\
         Optional(colon + Optional(atom)('vendor') +\
         Optional(colon + Optional(atom)('product') +\
         Optional(colon + Optional(atom)('version') +\

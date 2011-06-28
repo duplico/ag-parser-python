@@ -11,6 +11,7 @@ Author: George R Louthan IV
 """
 
 import sys
+import os
 import ag_parser
 import itertools
 import operator
@@ -52,7 +53,7 @@ class NetworkModel(object):
             self.qualities = {}
             self.topologies = {}
             self.factset = set()
-            self.platforms = set()
+            self.platforms = set() # This is a set of :-split CPEs
         
         def get_quality(self, name):
             """
@@ -91,26 +92,48 @@ class NetworkModel(object):
                 # Remove the fact that this one is deleting:
                 self.factset.remove(('quality', self.name, name,
                                      self.qualities[name]))
-                del self.qualitied[name]
+                del self.qualities[name]
                 return True # Changed.
             else:
                 # No fact to delete
                 return False # Not changed.
         
         def set_platform(self, platform):
-            # Platform is a tuple.
-            pass
+            # TODO: match better
+            # TODO: conflict detection
+            candidate = self.has_platform(platform)
+            if candidate:
+                return False # No change
+            else:
+                self.factset.add(('platform', self.name, ':'.join(platform),
+                                 platform))
+                self.platforms.add(platform)
+                return False
         
         def del_platform(self, platform):
-            # Platform is a tuple.
-            pass
+            candidate = self.has_platform(platform)
+            if candidate:
+                self.platforms.remove(candidate)
+                self.factset.remove(('platform', self.name, ':'.join(candidate),
+                                     candidate.split))
+                return True
+            else:
+                return False
         
         def has_platform(self, platform):
             # Platform is a tuple
             for cpe in self.platforms:
                 if len(cpe) >= len(platform):
                     ret = False
-                    
+                    for components in zip(cpe, platform):
+                        if components[0] == components[1] or platform == '':
+                            ret = True
+                        else:
+                            ret = False
+                            break
+                        if ret:
+                            return cpe # Return the matched platform
+            return False
         
         def get_topology(self, dest, name):
             """
@@ -177,7 +200,7 @@ class NetworkModel(object):
                 if fact[0] == 'quality':
                     qstring += '\nq:%s=%s' % (fact[2], fact[3])
                 elif fact[0] == 'platform':
-                    pstring += '\n%s' % fact[2] # TODO
+                    pstring += '\ncpe:/%s' % fact[2] # TODO
             ret+=qstring
             ret+=pstring
             return ret
@@ -203,7 +226,7 @@ class NetworkModel(object):
                 self.update_regen(self.assets[fact[1]].set_topology(fact[2],
                                                                     fact[3]))
             elif fact[0] == 'platform':
-                self.update_regen(self.assets[fact[1]].set_platform[fact[3]])
+                self.update_regen(self.assets[fact[1]].set_platform(fact[3]))
         
         self.needs_regen = False # As constructed, this object is up to date.
     
@@ -500,6 +523,7 @@ def nsfactlist_from_nm(netmodel):
     """
     factlist = []
     for netmodel_fact in netmodel.facts:
+        print netmodel_fact
         if netmodel_fact.type == 'quality':
             factlist.append((netmodel_fact.type, netmodel_fact.asset,
                          netmodel_fact.name, netmodel_fact.value))
@@ -509,6 +533,20 @@ def nsfactlist_from_nm(netmodel):
             if netmodel_fact.direction == '<->':
                 factlist.append((netmodel_fact.type, netmodel_fact.dest,
                                  netmodel_fact.source, netmodel_fact.name))
+        elif netmodel_fact.type == 'platform':
+            platform_tuple = (netmodel_fact.component_type, netmodel_fact.vendor,
+                              netmodel_fact.product, netmodel_fact.version,
+                              netmodel_fact.update, netmodel_fact.edition,
+                              netmodel_fact.lang)
+            last_value_index = 0
+            for i in range(len(platform_tuple)):
+                if platform_tuple[i]:
+                    last_value_index = i
+            platform_tuple = platform_tuple[:last_value_index+1]
+            print platform_tuple
+            platform_name = ':'.join(platform_tuple)
+            factlist.append((netmodel_fact.type, netmodel_fact.asset,
+                             platform_name, platform_tuple))
     return factlist
 
 def ns_from_nm(netmodel):
@@ -532,21 +570,24 @@ def build_attack_graph(nm_file, xp_file, depth):
     return generate_attack_graph([initial_network_state,], depth, exploit_dict,
                                  get_attack_bindings(netmodel, exploit_dict))
 
-def main(nm_file, xp_file, depth):    
-    outname = 'ag_%s/ag_depth%i.dot' % (nm_file.split('.')[0], depth)
+def main(nm_file, xp_file, depth):
+    nm_file_name = os.path.split(nm_file)[-1]
+    file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
+    outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
     global ag
     ag = build_attack_graph(nm_file, xp_file, int(depth))
     nx.write_dot(ag, outname)
     stategraphs = []
-    for node in ag.node:
-        node_out_name = 'ag_%s/nm_state%i.dot' % (nm_file.split('.')[0],
-                                                ag.node[node]['label'])
+    for node in ag.nodes_iter():
+        node_out_name = os.path.join(file_prefix, 'nm_state%i.dot' % \
+                                     (ag.node[node]['label'],))
         netmodel = NetworkModel(node)
         stategraph = netmodel.get_state_graph(str(ag.node[node]['label']))
         nx.write_dot(stategraph, node_out_name)
         stategraphs.append(stategraph)
     stategraphs_union = reduce(nx.disjoint_union, stategraphs)
-    nx.write_dot(stategraphs_union, 'ag_%s/ag_sg_depth%i.dot' % (nm_file.split('.')[0], depth))
+    sg_out_name = os.path.join(file_prefix, 'ag_sg_depth%i.dot' % (depth,))
+    nx.write_dot(stategraphs_union, sg_out_name)
 
 if __name__ == '__main__':
     if len(sys.argv) != 4:

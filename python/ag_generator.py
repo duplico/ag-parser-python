@@ -401,6 +401,7 @@ def get_successor_state(network_state, attack, exploit_dict):
     
     # Successively apply each of the exploit's postconditions according to
     # our chosen binding:
+    # TODO: platforms    
     for postcondition in exploit_dict[attack[0]].postconditions:
         if postcondition.operation == 'insert':
             if postcondition.type == 'topology':

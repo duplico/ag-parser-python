@@ -1,5 +1,3 @@
-# TODO: refactor on paper.
-
 from pyparsing import Word, Suppress, Literal, \
     alphanums, oneOf, ZeroOrMore, OneOrMore, Combine, Group, \
     delimitedList, Regex, Optional

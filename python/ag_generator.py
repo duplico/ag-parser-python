@@ -19,6 +19,9 @@ import networkx as nx
 #import matplotlib.pyplot as plt
 
 DEBUG = True
+REAL_OPERATORS = (':=', '+=', '-=', '*=', '/=', '==', '<>', '>=', '<=',
+                  '<', '>')
+TOKEN_OPERATORS = ('=', '!=')
 
 # TODO: There would probably be some performance benefits to making these
 # immutable:
@@ -105,7 +108,7 @@ class NetworkModel(object):
             if candidate:
                 return False # No change
             else:
-                self.factset.add(('platform', self.name, ':'.join(platform),
+                self.factset.add(('platform', self.name, '.'.join(platform),
                                  platform))
                 self.platforms.add(platform)
                 return False
@@ -114,14 +117,16 @@ class NetworkModel(object):
             candidate = self.has_platform(platform)
             if candidate:
                 self.platforms.remove(candidate)
-                self.factset.remove(('platform', self.name, ':'.join(candidate),
-                                     candidate.split))
+                self.factset.remove(('platform', self.name, '.'.join(candidate),
+                                     candidate))
                 return True
             else:
                 return False
         
         def has_platform(self, platform):
             # Platform is a tuple
+            print 'platform check'
+            print self.platforms
             for cpe in self.platforms:
                 if len(cpe) >= len(platform):
                     ret = False
@@ -200,7 +205,7 @@ class NetworkModel(object):
                 if fact[0] == 'quality':
                     qstring += '\nq:%s=%s' % (fact[2], fact[3])
                 elif fact[0] == 'platform':
-                    pstring += '\ncpe:/%s' % fact[2] # TODO
+                    pstring += '\ncpe:/%s' % ':'.join(fact[3]) # TODO
             ret+=qstring
             ret+=pstring
             return ret
@@ -316,6 +321,9 @@ class NetworkModel(object):
         exploit = exploit_dict[attack[0]]
         binding_dict = attack[1]
         
+        # TODO: if the precondition has any parameters that are not in the
+        # binding_dict's key set, we need to raise an error.
+        
         # These conditions are all WAY too simplistic for the hybrid extensions.
         # All we're doing here is checking generated fact tuples of the
         # preconditions for membership in the network model's fact base. TODO:
@@ -338,8 +346,10 @@ class NetworkModel(object):
                             binding_dict[precondition.dest], precondition.name)
                     if fact not in self.to_netstate()[1]:
                         return False
-            else:
-                return False
+            elif precondition.type == 'platform':
+                platform_tuple = platform_tuple_from_parse(precondition)
+                if not self.assets[binding_dict[precondition.asset]].has_platform(platform_tuple):
+                    return False
         return True
     
     def get_state_graph(self, label=False):
@@ -347,13 +357,25 @@ class NetworkModel(object):
         for asset in self.assets:
             node_label = str(self.assets[asset])
             if label:
-                node_label = label + ':' + node_label
+                node_label = label + '.' + node_label
             state_graph.add_node(asset, label=node_label)
         for asset in self.assets:
             for fact in self.assets[asset].get_facts():
                 if fact[0] == 'topology':
                     state_graph.add_edge(fact[1],fact[2],label=fact[3])
         return state_graph
+
+def platform_tuple_from_parse(fact):
+    if fact.type != 'platform':
+        raise TypeError('Not a platform.')
+    platform_tuple = (fact.component_type, fact.vendor, fact.product,
+                      fact.version, fact.update, fact.edition, fact.lang)
+    last_value_index = 0
+    for i in range(len(platform_tuple)):
+        if platform_tuple[i]:
+            last_value_index = i
+    platform_tuple = platform_tuple[:last_value_index+1]
+    return platform_tuple
 
 def get_attack_bindings(network_model, exploit_dict):
     """
@@ -497,9 +519,8 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
             if successor_state == analysis_state:
                 continue
             
-            if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s\n%s" % \
-                (attack, exploit_dict[attack[0]], successor_state,
-                 str(analysis_state == successor_state))
+            if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                (attack, exploit_dict[attack[0]], successor_state)
             
             # If the successor state does not exist, add it to the list to
             # be analyzed on the next iteration and the attack graph.
@@ -509,7 +530,7 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                 successor_states.append(successor_state)
                 attack_graph.add_node(successor_state, label=next_label)
                 next_label+=1
-            
+            print analysis_state in attack_graph, successor_state in attack_graph
             # Add the state transition to the attack graph
             attack_graph.add_edge(analysis_state, successor_state,
                                   label=get_pretty_attack(attack, exploit_dict))
@@ -535,17 +556,9 @@ def nsfactlist_from_nm(netmodel):
                 factlist.append((netmodel_fact.type, netmodel_fact.dest,
                                  netmodel_fact.source, netmodel_fact.name))
         elif netmodel_fact.type == 'platform':
-            platform_tuple = (netmodel_fact.component_type, netmodel_fact.vendor,
-                              netmodel_fact.product, netmodel_fact.version,
-                              netmodel_fact.update, netmodel_fact.edition,
-                              netmodel_fact.lang)
-            last_value_index = 0
-            for i in range(len(platform_tuple)):
-                if platform_tuple[i]:
-                    last_value_index = i
-            platform_tuple = platform_tuple[:last_value_index+1]
+            platform_tuple = platform_tuple_from_parse(netmodel_fact)
             print platform_tuple
-            platform_name = ':'.join(platform_tuple)
+            platform_name = '.'.join(platform_tuple)
             factlist.append((netmodel_fact.type, netmodel_fact.asset,
                              platform_name, platform_tuple))
     return factlist

@@ -385,7 +385,7 @@ def get_pretty_attack(attack, exploit_dict):
     params = []
     for formal_parameter in exploit.params:
         params.append(attack[1][formal_parameter])
-    return '%s(%s)' % (attack[0], ','.join(params))
+    return '%s(%s)' % (attack[0], ',\n'.join(params))
 
 def get_successor_state(network_state, attack, exploit_dict):
     """

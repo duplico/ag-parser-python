@@ -22,6 +22,11 @@ DEBUG = True
 REAL_OPERATORS = (':=', '+=', '-=', '*=', '/=', '==', '<>', '>=', '<=',
                   '<', '>')
 TOKEN_OPERATORS = ('=', '!=')
+IDENTITY_OPERATORS = ('=', '==')
+
+OPERATORS = {'==' : operator.eq, '<>' : operator.ne, '>=' : operator.ge,
+             '<=' : operator.le, '<' : operator.lt, '>' : operator.gt,
+             '=' : operator.eq, '!=' : operator.ne}
 
 # TODO: There would probably be some performance benefits to making these
 # immutable:
@@ -63,14 +68,14 @@ class NetworkModel(object):
         
         def get_quality(self, name):
             """
-            Returns the a named quality fact or False if it doesn't exist.
+            Returns the a named quality fact or None if it doesn't exist.
             """
             if name in self.qualities:
                 return self.qualities[name]
             else:
-                return False
+                return None
         
-        def set_quality(self, name, value): # TODO: hybrid
+        def set_quality(self, name, value):
             """
             Sets the value of the named quality.
             
@@ -144,19 +149,19 @@ class NetworkModel(object):
                             return cpe # Return the matched platform
             return False
         
-        def get_topology(self, dest, name): # TODO: hybrid
+        def get_topology(self, dest, name): # TODO: typechecking after calling
             """
             Query the existence of a named topology and destination.
             
-            Returns the topology fact if it exists, and False otherwise.
+            Returns the topology fact if it exists, and None otherwise.
             """
             if dest in self.topologies and name in self.topologies[dest]:
-                return self.topologies[name][dest]
+                return self.topologies[dest][name]
             else:
-                return False
+                return None
         
         # We're using topologies[DESTINATION_ASSET] = {SET OF TOPOLOGIES} here.
-        def set_topology(self, dest, name, value=None): # TODO: hybrid
+        def set_topology(self, dest, name, value=True): # TODO: typechecking prior to calling
             """
             Sets a named topology to the named destination.
             
@@ -164,22 +169,21 @@ class NetworkModel(object):
             base, False if it will not.
             """
             if dest in self.topologies and name in self.topologies[dest] and \
-                    self.topologies[dest][name]:
+                    self.topologies[dest][name] == value:
                 # No change
                 return False
             elif dest in self.topologies and name in self.topologies[dest]:
-                # Topology "exists" but is wrong
-                self.topologies[dest][name] = True
-                # TODO for hybrid we need a remove here.
-                assert(False) # Should be unreachable.
+                # Topology exists but is wrong
+                self.topologies[dest][name] = value
+                # TODO for hybrid we need a remove here (what does this mean?)
                 return True
             else:
                 # Topology entry does not exist
                 self.factset.add(('topology',self.name,dest,name))
-                self.topologies[dest] = {name : True,}
+                self.topologies[dest] = {name : value,}
                 return True
         
-        def del_topology(self, dest, name): # TODO: hybrid (use type())
+        def del_topology(self, dest, name):
             """
             Deletes a named topology with a named destination asset.
             
@@ -214,7 +218,7 @@ class NetworkModel(object):
             ret+=pstring
             return ret
     
-    def __init__(self, netstate): # TODO - hybrid
+    def __init__(self, netstate):
         """
         Takes a network state tuple and constructs a network model from it.
         """
@@ -229,11 +233,21 @@ class NetworkModel(object):
         
         for fact in netstate[1]: # Load all our facts into our asset objects:
             if fact[0] == 'quality':
-                self.update_regen(self.assets[fact[1]].set_quality(fact[2],
-                                                                   fact[3]))
+                if len(fact) == 4:
+                    self.update_regen(self.assets[fact[1]]\
+                                      .set_quality(fact[2], fact[3]))
+                else:
+                    assert False # Should not happen.
             elif fact[0] == 'topology':
-                self.update_regen(self.assets[fact[1]].set_topology(fact[2],
-                                                                    fact[3]))
+                if len(fact) == 4: # Token-valued
+                    self.update_regen(self.assets[fact[1]]\
+                                      .set_topology(fact[2], fact[3]))
+                elif len(fact) == 5: # Real-valued
+                    self.update_regen(self.assets[fact[1]]\
+                                      .set_topology(fact[2], fact[3],
+                                                    value=fact[4]))
+                else:
+                    assert False # Should not happen.
             elif fact[0] == 'platform':
                 self.update_regen(self.assets[fact[1]].set_platform(fact[3]))
         
@@ -311,6 +325,21 @@ class NetworkModel(object):
             self.netstate = (assets, facts)
             return self.netstate
     
+    def matches_topology(self, source, dest, name, value=True, op='==',
+                         check_reverse=False):
+        my_value = self.get_topology(source, dest, name)
+        if my_value != None and type(my_value) != type(value):
+            raise TypeError('Cannot match token values with real values.')
+        if check_reverse:
+            return OPERATORS[op](my_value, value) and\
+                   matches_topology(self, dest, source, name, value=value,
+                                    op=op)
+        else:
+            return OPERATORS[op](my_value, value)
+    
+    def matches_quality(self, asset, name, value, operator):
+        pass
+    
     def validate_attack(self, attack, exploit_dict): # TODO: hybrid
         """
         Determines whether a bound attack's preconditions match this netmodel.
@@ -325,9 +354,6 @@ class NetworkModel(object):
         exploit = exploit_dict[attack[0]]
         binding_dict = attack[1]
         
-        # TODO: if the precondition has any parameters that are not in the
-        # binding_dict's key set, we need to raise an error.
-        
         # These conditions are all WAY too simplistic for the hybrid extensions.
         # All we're doing here is checking generated fact tuples of the
         # preconditions for membership in the network model's fact base. TODO:
@@ -336,24 +362,35 @@ class NetworkModel(object):
         # facts in the factbase.
         for precondition in exploit.preconditions:
             if precondition.type == 'quality':
-                fact = ('quality', binding_dict[precondition.asset],
-                        precondition.name, precondition.value)
-                if fact not in self.to_netstate()[1]:
-                    return False
-            elif precondition.type == 'topology':
-                fact = ('topology', binding_dict[precondition.source],
-                        binding_dict[precondition.dest], precondition.name)
-                if fact not in self.to_netstate()[1]:
-                    return False
-                if precondition.direction == '<->': # Test opposite direction?
-                    fact = ('topology', binding_dict[precondition.source],
-                            binding_dict[precondition.dest], precondition.name)
+                if precondition.operator in IDENTITY_OPERATORS:
+                    fact = ('quality', binding_dict[precondition.asset],
+                            precondition.name, precondition.value)
                     if fact not in self.to_netstate()[1]:
                         return False
+                else:
+                    pass
+            elif precondition.type == 'topology':
+                bothways = precondition.direction == '<->'
+                if precondition.value and precondition.operator: # Real.
+                    ret = self.matches_topology(binding_dict[precondition.source],
+                                                binding_dict[precondition.dest],
+                                                precondition.name,
+                                                precondition.value,
+                                                precondition.operator,
+                                                check_reverse=bothways)
+                else: # Token
+                    ret = self.matches_topology(binding_dict[precondition.source],
+                                                binding_dict[precondition.dest],
+                                                precondition.name,
+                                                check_reverse=bothways)
+                if not ret:
+                    return False
             elif precondition.type == 'platform':
                 platform_tuple = platform_tuple_from_parse(precondition)
                 if not self.assets[binding_dict[precondition.asset]].has_platform(platform_tuple):
                     return False
+            else:
+                raise TypeError('Unknown fact type %s.' % precondition.type)
         return True
     
     def get_state_graph(self, label=False): # TODO: hybrid

@@ -11,6 +11,7 @@ from pyparsing import Word, Suppress, Literal, \
 real = Regex(r"[+-]?\d+(\.\d*)?").setParseAction(lambda t: float(t[0]))
 
 cpe_valid_characters = alphanums+"-.+_~%"
+cpe_atom = Word(cpe_valid_characters)
 plain_atom = Word(alphanums+"._~")
 atom = Word(alphanums+"._~%")
 empty_atom = Word(alphanums)
@@ -28,15 +29,19 @@ tok_assignop = Literal('=')
 real_relop = oneOf('== <> >= <= > <')
 tok_relop = oneOf('= !=')
 
+# TODO: make this work somehow.
+hostdec = (Literal('@') | Literal('!@'))
+hostdec.setParseAction(lambda a: {'@': 'up', '!@': 'down'}[str(a[0])])
+host = hostdec('status') + atom + semi
 # Shared grammar elements
 
 cpe = Suppress(Literal('cpe:/')) +\
         Optional(Optional(cpe_type)('component_type') +\
-        Optional(colon + Optional(atom)('vendor') +\
-        Optional(colon + Optional(atom)('product') +\
-        Optional(colon + Optional(atom)('version') +\
-        Optional(colon + Optional(atom)('update') +\
-        Optional(colon + Optional(atom)('edition') +\
+        Optional(colon + Optional(cpe_atom)('vendor') +\
+        Optional(colon + Optional(cpe_atom)('product') +\
+        Optional(colon + Optional(cpe_atom)('version') +\
+        Optional(colon + Optional(cpe_atom)('update') +\
+        Optional(colon + Optional(cpe_atom)('edition') +\
         Optional(colon + Optional(language_tag)('lang'))))))))
 
 topology_decl = Literal('topology')('type') + colon + atom('source') + \
@@ -92,6 +97,7 @@ exploit = Suppress('exploit') + atom('name') + lpar + \
           Group(ZeroOrMore(Group(relfact)))('preconditions') + \
           'postconditions' + colon + \
           Group(ZeroOrMore(Group(factop)))('postconditions') + dot
+
 exploits = OneOrMore(Group(exploit))
 
 # Parser for state predicates

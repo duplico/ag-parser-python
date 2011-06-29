@@ -38,9 +38,12 @@ class NetworkModel(object):
     the second element is a frozenset containing "fact tuples". Fact tuples
     take the following format:
     
+    On the backend, we know if a fact is real or token by its type: reals are
+    floats, and tokens are strings.
+    
     Network state: ((asset frozenset of strings), (frozenset of fact tuples))
     For qualities: ('quality', asset, name, value)
-    For topologies: ('topology', asset1, asset2, name)
+    For topologies: ('topology', asset1, asset2, name[, value])
     For platforms: ('platform', asset, name, tuple(name.split(':')))
     
     The mutability of a NetworkModel is not guaranteed for perpetuity; its
@@ -67,7 +70,7 @@ class NetworkModel(object):
             else:
                 return False
         
-        def set_quality(self, name, value):
+        def set_quality(self, name, value): # TODO: hybrid
             """
             Sets the value of the named quality.
             
@@ -102,7 +105,8 @@ class NetworkModel(object):
                 return False # Not changed.
         
         def set_platform(self, platform):
-            # TODO: match better
+            # TODO: match better (i.e. replace more general facts if the new
+            #   fact is more specific)
             # TODO: conflict detection
             candidate = self.has_platform(platform)
             if candidate:
@@ -140,7 +144,7 @@ class NetworkModel(object):
                             return cpe # Return the matched platform
             return False
         
-        def get_topology(self, dest, name):
+        def get_topology(self, dest, name): # TODO: hybrid
             """
             Query the existence of a named topology and destination.
             
@@ -152,7 +156,7 @@ class NetworkModel(object):
                 return False
         
         # We're using topologies[DESTINATION_ASSET] = {SET OF TOPOLOGIES} here.
-        def set_topology(self, dest, name):
+        def set_topology(self, dest, name, value=None): # TODO: hybrid
             """
             Sets a named topology to the named destination.
             
@@ -175,7 +179,7 @@ class NetworkModel(object):
                 self.topologies[dest] = {name : True,}
                 return True
         
-        def del_topology(self, dest, name):
+        def del_topology(self, dest, name): # TODO: hybrid (use type())
             """
             Deletes a named topology with a named destination asset.
             
@@ -184,8 +188,8 @@ class NetworkModel(object):
             """
             if dest in self.topologies and name in self.topologies[dest] and \
                     self.topologies[dest][name]:
-                del self.topologies[dest][name]
                 self.factset.remove(('topology',self.name,dest,name))
+                del self.topologies[dest][name]
                 return True
             else:
                 # No change
@@ -210,7 +214,7 @@ class NetworkModel(object):
             ret+=pstring
             return ret
     
-    def __init__(self, netstate):
+    def __init__(self, netstate): # TODO - hybrid
         """
         Takes a network state tuple and constructs a network model from it.
         """
@@ -307,7 +311,7 @@ class NetworkModel(object):
             self.netstate = (assets, facts)
             return self.netstate
     
-    def validate_attack(self, attack, exploit_dict):
+    def validate_attack(self, attack, exploit_dict): # TODO: hybrid
         """
         Determines whether a bound attack's preconditions match this netmodel.
         
@@ -352,7 +356,7 @@ class NetworkModel(object):
                     return False
         return True
     
-    def get_state_graph(self, label=False):
+    def get_state_graph(self, label=False): # TODO: hybrid
         state_graph = nx.MultiDiGraph()
         for asset in self.assets:
             node_label = str(self.assets[asset])
@@ -409,7 +413,7 @@ def get_pretty_attack(attack, exploit_dict):
         params.append(attack[1][formal_parameter])
     return '%s(%s)' % (attack[0], ','.join(params))
 
-def get_successor_state(network_state, attack, exploit_dict):
+def get_successor_state(network_state, attack, exploit_dict): # TODO: hybrid
     """
     Returns the successor state of applying an attack to a network state.
     """
@@ -423,7 +427,6 @@ def get_successor_state(network_state, attack, exploit_dict):
     
     # Successively apply each of the exploit's postconditions according to
     # our chosen binding:
-    # TODO: platforms    
     for postcondition in exploit_dict[attack[0]].postconditions:
         if postcondition.operation == 'insert':
             if postcondition.type == 'topology':
@@ -434,6 +437,9 @@ def get_successor_state(network_state, attack, exploit_dict):
                 network_model.set_quality(binding_dict[postcondition.asset],
                                           postcondition.name,
                                           postcondition.value)
+            elif postcondition.type == 'platform':
+                network_model.set_quality(binding_dict[postcondition.asset],
+                                          platform_tuple_from_parse(postcondition.platform))
         elif postcondition.operation == 'delete':
             if postcondition.type == 'topology':
                 network_model.del_topology(binding_dict[postcondition.source],
@@ -442,8 +448,12 @@ def get_successor_state(network_state, attack, exploit_dict):
             elif postcondition.type == 'quality':
                 network_model.del_quality(binding_dict[postcondition.asset],
                                           postcondition.name)
+            elif postcondition.type == 'platform':
+                network_model.del_quality(binding_dict[postcondition.asset],
+                                          platform_tuple_from_parse(postcondition.platform))
         else:
-            assert(False) # Should be unreachable.
+            raise TypeError('Unknown postcondition operator %s' \
+                            % (postcondition.operation,))
     
     # Freeze the mutable network model object into a hashable, immutable
     # network state tuple-of-frozensets, which we then return:

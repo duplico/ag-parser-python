@@ -138,8 +138,6 @@ class NetworkModel(object):
         
         def has_platform(self, platform):
             # Platform is a tuple
-            print 'platform check'
-            print self.platforms
             for cpe in self.platforms:
                 if len(cpe) >= len(platform):
                     ret = False
@@ -178,11 +176,18 @@ class NetworkModel(object):
                 return False
             elif dest in self.topologies and name in self.topologies[dest]:
                 # Topology exists but is wrong
+                old_value = self.topologies[dest][name]
+                self.factset.remove(('topology',self.name,dest,name,old_value,))
                 self.topologies[dest][name] = value
-                # TODO for hybrid we need a remove here (what does this mean?)
+                self.factset.add(('topology',self.name,dest,name,value,))
+                return True
+            elif dest in self.topologies:
+                # Different topology exists between these assets                
+                self.topologies[dest][name] = value
+                self.factset.add(('topology',self.name,dest,name,value,))
                 return True
             else:
-                # Topology entry does not exist
+                # Topology dictionary does not exist
                 self.factset.add(('topology',self.name,dest,name,value,))
                 self.topologies[dest] = {name : value,}
                 return True
@@ -446,6 +451,7 @@ def get_attack_bindings(network_model, exploit_dict):
     
     # For every exploit:
     for exploit_name in exploit_dict:
+        print exploit_name
         exploit = exploit_dict[exploit_name]
         
         # Generate a list of permutations of network assets the length
@@ -469,7 +475,6 @@ def get_successor_state(network_state, attack, exploit_dict):
     """
     Returns the successor state of applying an attack to a network state.
     """
-    
     # Assets are currently always unchanged.
     successor_assets = network_state[0]
     
@@ -575,7 +580,6 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
         # For each valid attack in that state:
         for attack in get_attacks(analysis_model, exploit_dict,
                                   attack_bindings):
-            
             # Generate the successor state:
             successor_state = get_successor_state(analysis_state, attack,
                                                   exploit_dict)
@@ -595,7 +599,7 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                 successor_states.append(successor_state)
                 attack_graph.add_node(successor_state, label=next_label)
                 next_label+=1
-            print analysis_state in attack_graph, successor_state in attack_graph
+            if DEBUG: print analysis_state in attack_graph, successor_state in attack_graph
             # Add the state transition to the attack graph
             attack_graph.add_edge(analysis_state, successor_state,
                                   label=get_pretty_attack(attack, exploit_dict))
@@ -609,7 +613,6 @@ def nsfactlist_from_nm(netmodel):
     """
     factlist = []
     for netmodel_fact in netmodel.facts:
-        print netmodel_fact
         if netmodel_fact.type == 'quality': # For qualities:
             # Discrete/real detection is taken care of by the parser.
             factlist.append((netmodel_fact.type, netmodel_fact.asset,
@@ -639,7 +642,6 @@ def nsfactlist_from_nm(netmodel):
         elif netmodel_fact.type == 'platform':
             # Platforms are neither token nor real valued.
             platform_tuple = platform_tuple_from_parse(netmodel_fact)
-            print platform_tuple
             platform_name = '.'.join(platform_tuple)
             factlist.append((netmodel_fact.type, netmodel_fact.asset,
                              platform_name, platform_tuple))
@@ -649,6 +651,7 @@ def ns_from_nm(netmodel):
     """
     Returns a network state tuple-of-frozensets from a raw network model parse.
     """
+    print netmodel.assets
     assets = frozenset(netmodel.assets)
     facts = frozenset(nsfactlist_from_nm(netmodel))
     return (assets, facts)
@@ -672,6 +675,7 @@ def main(nm_file, xp_file, depth):
     outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
     global ag
     ag = build_attack_graph(nm_file, xp_file, int(depth))
+    print 'Visualizing.'
     nx.write_dot(ag, outname)
     stategraphs = []
     for node in ag.nodes_iter():

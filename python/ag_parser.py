@@ -6,6 +6,8 @@ from pyparsing import Word, Suppress, Literal, \
 #             'insert', 'delete', 'exploit', 'preconditions', 'postconditions',\
 #             'state', 'predicate']
 
+# TODO: topology deletion syntax should not permit operators, only names.
+
 real = Regex(r"[+-]?\d+(\.\d*)?").setParseAction(lambda t: float(t[0]))
 
 cpe_valid_characters = alphanums+"-.+_~%"

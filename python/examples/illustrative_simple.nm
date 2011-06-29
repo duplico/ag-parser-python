@@ -1,0 +1,13 @@
+network model = 
+    assets :
+        asset_1;
+        asset_2;
+        asset_3;
+
+    facts :
+        quality:asset_1,quality_1=value_1;
+        quality:asset_2,quality_1=value_2;
+        quality:asset_3,quality_1=value_1;
+        topology:asset_1->asset_2,topology_1;
+        topology:asset_3->asset_2,topology_1;
+.

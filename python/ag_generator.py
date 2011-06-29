@@ -179,7 +179,7 @@ class NetworkModel(object):
                 return True
             else:
                 # Topology entry does not exist
-                self.factset.add(('topology',self.name,dest,name))
+                self.factset.add(('topology',self.name,dest,name,value,))
                 self.topologies[dest] = {name : value,}
                 return True
         
@@ -191,8 +191,9 @@ class NetworkModel(object):
             base, False if it will not.
             """
             if dest in self.topologies and name in self.topologies[dest] and \
-                    self.topologies[dest][name]:
-                self.factset.remove(('topology',self.name,dest,name))
+                    self.topologies[dest][name]:                
+                self.factset.remove(('topology',self.name,dest,name,
+                                     self.topologies[dest][name],))
                 del self.topologies[dest][name]
                 return True
             else:
@@ -242,7 +243,7 @@ class NetworkModel(object):
                 if len(fact) == 4: # Token-valued
                     self.update_regen(self.assets[fact[1]]\
                                       .set_topology(fact[2], fact[3]))
-                elif len(fact) == 5: # Real-valued
+                elif len(fact) == 5: # Real-valued?
                     self.update_regen(self.assets[fact[1]]\
                                       .set_topology(fact[2], fact[3],
                                                     value=fact[4]))
@@ -343,7 +344,7 @@ class NetworkModel(object):
             raise TypeError('Cannot match token values with real values.')
         return OPERATORS[op](my_value, value)
     
-    def validate_attack(self, attack, exploit_dict): # TODO: hybrid
+    def validate_attack(self, attack, exploit_dict):
         """
         Determines whether a bound attack's preconditions match this netmodel.
         
@@ -580,7 +581,6 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
     return generate_attack_graph(successor_states, depth-1, exploit_dict,
                                  attack_bindings, attack_graph, next_label)
 
-# TODO: This is currently totally discrete:
 def nsfactlist_from_nm(netmodel):
     """
     Returns a list of facts in the fact tuple format from a raw netmodel parse.
@@ -588,16 +588,34 @@ def nsfactlist_from_nm(netmodel):
     factlist = []
     for netmodel_fact in netmodel.facts:
         print netmodel_fact
-        if netmodel_fact.type == 'quality':
+        if netmodel_fact.type == 'quality': # For qualities:
+            # Discrete/real detection is taken care of by the parser.
             factlist.append((netmodel_fact.type, netmodel_fact.asset,
                          netmodel_fact.name, netmodel_fact.value))
         elif netmodel_fact.type == 'topology':
-            factlist.append((netmodel_fact.type, netmodel_fact.source,
-                         netmodel_fact.dest, netmodel_fact.name))
+            if netmodel_fact.value and type(netmodel_fact.value) == float:
+                # Real value; make a 5-tuple
+                fact = (netmodel_fact.type, netmodel_fact.source,
+                        netmodel_fact.dest, netmodel_fact.name,
+                        netmodel_fact.value)
+            else:
+                # Token value (no value); make a 4-tuple
+                fact = (netmodel_fact.type, netmodel_fact.source,
+                        netmodel_fact.dest, netmodel_fact.name)
+            factlist.append(fact)
+            # If necessary, also add the reverse:
             if netmodel_fact.direction == '<->':
-                factlist.append((netmodel_fact.type, netmodel_fact.dest,
-                                 netmodel_fact.source, netmodel_fact.name))
+                rev_fact = (netmodel_fact.type, netmodel_fact.dest,
+                            netmodel_fact.source, netmodel_fact.name)
+                if len(fact) > len(rev_fact):
+                    assert len(fact) == 5
+                    # Add the value if it's token-valued; this code will
+                    # work for cases where the real fact tuple is
+                    # arbitrarily longer than the token fact.
+                    rev_fact += fact[len(rev_fact)-len(fact):]
+                factlist.append(rev_fact)
         elif netmodel_fact.type == 'platform':
+            # Platforms are neither token nor real valued.
             platform_tuple = platform_tuple_from_parse(netmodel_fact)
             print platform_tuple
             platform_name = '.'.join(platform_tuple)

@@ -1,0 +1,14 @@
+network model = 
+    assets :
+        attacker;
+        login_server;
+        web_server;
+    
+    facts :
+        quality:web_server,grade=F;
+        topology:attacker->login_server,connected_network_ssh;
+        topology:login_server->web_server,connected_network_http;
+        platform:login_server,cpe:/a:openssl_project:openssl:0.9.8c-1;
+        platform:login_server,cpe:/o:linux:kernel:2.6.24;
+        platform:web_server,cpe:/a:isec:blundergrades;
+.

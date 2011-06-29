@@ -11,8 +11,8 @@ from pyparsing import Word, Suppress, Literal, \
 real = Regex(r"[+-]?\d+(\.\d*)?").setParseAction(lambda t: float(t[0]))
 
 cpe_valid_characters = alphanums+"-.+_~%"
-plain_atom = Word(alphanums+"-.+_~")
-atom = Word(alphanums+".+_~%")
+plain_atom = Word(alphanums+"._~")
+atom = Word(alphanums+"._~%")
 empty_atom = Word(alphanums)
 cpe_type = Word('aho', exact=1)
 language_tag = plain_atom # TODO: RFC 4646 compliance

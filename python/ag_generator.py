@@ -19,14 +19,18 @@ import networkx as nx
 #import matplotlib.pyplot as plt
 
 DEBUG = True
-REAL_OPERATORS = (':=', '+=', '-=', '*=', '/=', '==', '<>', '>=', '<=',
-                  '<', '>')
-TOKEN_OPERATORS = ('=', '!=')
-IDENTITY_OPERATORS = ('=', '==')
 
-OPERATORS = {'==' : operator.eq, '<>' : operator.ne, '>=' : operator.ge,
+def identity(old, new):
+    """
+    Returns its parameter. Used for the literal assignment operators (=, :=).
+    """
+    return new
+
+RELOPS = {'==' : operator.eq, '<>' : operator.ne, '>=' : operator.ge,
              '<=' : operator.le, '<' : operator.lt, '>' : operator.gt,
              '=' : operator.eq, '!=' : operator.ne}
+ASSIGNOPS = {'+=' : operator.add, '-=' : operator.sub, '*=' : operator.mul,
+             '/=' : operator.div, ':=' : identity, '=' : identity}
 
 # TODO: There would probably be some performance benefits to making these
 # immutable:
@@ -149,7 +153,7 @@ class NetworkModel(object):
                             return cpe # Return the matched platform
             return False
         
-        def get_topology(self, dest, name): # TODO: typechecking after calling
+        def get_topology(self, dest, name):
             """
             Query the existence of a named topology and destination.
             
@@ -161,7 +165,7 @@ class NetworkModel(object):
                 return None
         
         # We're using topologies[DESTINATION_ASSET] = {SET OF TOPOLOGIES} here.
-        def set_topology(self, dest, name, value=True): # TODO: typechecking prior to calling
+        def set_topology(self, dest, name, value=True):
             """
             Sets a named topology to the named destination.
             
@@ -212,9 +216,11 @@ class NetworkModel(object):
             pstring = ''
             for fact in self.factset:
                 if fact[0] == 'quality':
-                    qstring += '\nq:%s=%s' % (fact[2], fact[3])
+                    qstring += '\n%s:%s=%s' %\
+                               ('token' if type(fact[3]) == str else 'real',
+                                fact[2], fact[3])
                 elif fact[0] == 'platform':
-                    pstring += '\ncpe:/%s' % ':'.join(fact[3]) # TODO
+                    pstring += '\ncpe:/%s' % ':'.join(fact[3])
             ret+=qstring
             ret+=pstring
             return ret
@@ -273,17 +279,25 @@ class NetworkModel(object):
         """
         return self.assets[source].get_topology(dest, name)
     
-    def set_quality(self, asset, name, value):
+    def set_quality(self, asset, name, value, op='='):
         """
         Sets a named quality on a named asset to a given value.
         """
-        self.update_regen(self.assets[asset].set_quality(name, value))
+        my_value = self.assets[asset].get_quality(name)
+        new_value = ASSIGNOPS[op](my_value, value)
+        self.update_regen(self.assets[asset].set_quality(name, new_value))
     
-    def set_topology(self, source, dest, name):
+    def set_topology(self, source, dest, name, value=True, op=None):
         """
         Sets a named topology between specified assets.
         """
-        self.update_regen(self.assets[source].set_topology(dest, name))
+        if not op: # Token
+            self.update_regen(self.assets[source].set_topology(dest, name))
+        else: # Real
+            my_value = self.assets[source].get_topology(dest, name)
+            new_value = ASSIGNOPS[op](my_value, new_value)
+            self.update_regen(self.assets[source].set_topology(dest, name,
+                                                               new_value))
     
     def set_platform(self, asset, cpe_tuple):
         self.update_regen(self.assets[asset].set_platform(cpe_tuple))
@@ -332,17 +346,18 @@ class NetworkModel(object):
         if my_value != None and type(my_value) != type(value):
             raise TypeError('Cannot match token values with real values.')
         if check_reverse:
-            return OPERATORS[op](my_value, value) and\
+            return RELOPS[op](my_value, value) and\
                    matches_topology(self, dest, source, name, value=value,
                                     op=op)
         else:
-            return OPERATORS[op](my_value, value)
+            return RELOPS[op](my_value, value)
     
     def matches_quality(self, asset, name, value, op='=='):
         my_value = self.get_quality(asset, name)
         if my_value != None and type(my_value) != type(value):
-            raise TypeError('Cannot match token values with real values.')
-        return OPERATORS[op](my_value, value)
+            raise TypeError('Cannot match token values with real values: %s.%s %s %s (actual value %s)' \
+                            % (asset, name, op, value, my_value))
+        return RELOPS[op](my_value, value)
     
     def validate_attack(self, attack, exploit_dict):
         """
@@ -389,7 +404,7 @@ class NetworkModel(object):
                 raise TypeError('Unknown fact type %s.' % precondition.type)
         return True
     
-    def get_state_graph(self, label=False): # TODO: hybrid
+    def get_state_graph(self, label=False):
         state_graph = nx.MultiDiGraph()
         for asset in self.assets:
             node_label = str(self.assets[asset])
@@ -399,7 +414,11 @@ class NetworkModel(object):
         for asset in self.assets:
             for fact in self.assets[asset].get_facts():
                 if fact[0] == 'topology':
-                    state_graph.add_edge(fact[1],fact[2],label=fact[3])
+                    if type(fact[4]) == float:
+                        lbl = '%s=%d' % (fact[3], fact[4])
+                    else:
+                        lbl = fact[3]
+                    state_graph.add_edge(fact[1],fact[2],label=lbl)
         return state_graph
 
 def platform_tuple_from_parse(fact):
@@ -446,7 +465,7 @@ def get_pretty_attack(attack, exploit_dict):
         params.append(attack[1][formal_parameter])
     return '%s(%s)' % (attack[0], ','.join(params))
 
-def get_successor_state(network_state, attack, exploit_dict): # TODO: hybrid
+def get_successor_state(network_state, attack, exploit_dict):
     """
     Returns the successor state of applying an attack to a network state.
     """
@@ -461,17 +480,20 @@ def get_successor_state(network_state, attack, exploit_dict): # TODO: hybrid
     # Successively apply each of the exploit's postconditions according to
     # our chosen binding:
     for postcondition in exploit_dict[attack[0]].postconditions:
-        if postcondition.operation == 'insert':
+        if postcondition.operation in ('insert', 'update'):
             if postcondition.type == 'topology':
                 network_model.set_topology(binding_dict[postcondition.source],
                                            binding_dict[postcondition.dest],
-                                           postcondition.name)
+                                           postcondition.name,
+                                           value=postcondition.value,
+                                           op=postcondition.operator)
             elif postcondition.type == 'quality':
                 network_model.set_quality(binding_dict[postcondition.asset],
                                           postcondition.name,
-                                          postcondition.value)
+                                          postcondition.value,
+                                          op=postcondition.operator)
             elif postcondition.type == 'platform':
-                network_model.set_quality(binding_dict[postcondition.asset],
+                network_model.set_platform(binding_dict[postcondition.asset],
                                           platform_tuple_from_parse(postcondition.platform))
         elif postcondition.operation == 'delete':
             if postcondition.type == 'topology':
@@ -482,7 +504,7 @@ def get_successor_state(network_state, attack, exploit_dict): # TODO: hybrid
                 network_model.del_quality(binding_dict[postcondition.asset],
                                           postcondition.name)
             elif postcondition.type == 'platform':
-                network_model.del_quality(binding_dict[postcondition.asset],
+                network_model.del_platform(binding_dict[postcondition.asset],
                                           platform_tuple_from_parse(postcondition.platform))
         else:
             raise TypeError('Unknown postcondition operator %s' \

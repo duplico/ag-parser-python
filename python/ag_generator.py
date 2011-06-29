@@ -20,6 +20,18 @@ import networkx as nx
 
 DEBUG = True
 
+def identity(old, new):
+    """
+    Returns its parameter. Used for the literal assignment operators (=, :=).
+    """
+    return new
+
+RELOPS = {'==' : operator.eq, '<>' : operator.ne, '>=' : operator.ge,
+             '<=' : operator.le, '<' : operator.lt, '>' : operator.gt,
+             '=' : operator.eq, '!=' : operator.ne}
+ASSIGNOPS = {'+=' : operator.add, '-=' : operator.sub, '*=' : operator.mul,
+             '/=' : operator.div, ':=' : identity, '=' : identity}
+
 # TODO: There would probably be some performance benefits to making these
 # immutable:
 class NetworkModel(object):
@@ -35,9 +47,12 @@ class NetworkModel(object):
     the second element is a frozenset containing "fact tuples". Fact tuples
     take the following format:
     
+    On the backend, we know if a fact is real or token by its type: reals are
+    floats, and tokens are strings.
+    
     Network state: ((asset frozenset of strings), (frozenset of fact tuples))
     For qualities: ('quality', asset, name, value)
-    For topologies: ('topology', asset1, asset2, name)
+    For topologies: ('topology', asset1, asset2, name[, value])
     For platforms: ('platform', asset, name, tuple(name.split(':')))
     
     The mutability of a NetworkModel is not guaranteed for perpetuity; its
@@ -57,12 +72,12 @@ class NetworkModel(object):
         
         def get_quality(self, name):
             """
-            Returns the a named quality fact or False if it doesn't exist.
+            Returns the a named quality fact or None if it doesn't exist.
             """
             if name in self.qualities:
                 return self.qualities[name]
             else:
-                return False
+                return None
         
         def set_quality(self, name, value):
             """
@@ -99,13 +114,14 @@ class NetworkModel(object):
                 return False # Not changed.
         
         def set_platform(self, platform):
-            # TODO: match better
+            # TODO: match better (i.e. replace more general facts if the new
+            #   fact is more specific)
             # TODO: conflict detection
             candidate = self.has_platform(platform)
             if candidate:
                 return False # No change
             else:
-                self.factset.add(('platform', self.name, ':'.join(platform),
+                self.factset.add(('platform', self.name, '.'.join(platform),
                                  platform))
                 self.platforms.add(platform)
                 return False
@@ -114,8 +130,8 @@ class NetworkModel(object):
             candidate = self.has_platform(platform)
             if candidate:
                 self.platforms.remove(candidate)
-                self.factset.remove(('platform', self.name, ':'.join(candidate),
-                                     candidate.split))
+                self.factset.remove(('platform', self.name, '.'.join(candidate),
+                                     candidate))
                 return True
             else:
                 return False
@@ -139,15 +155,15 @@ class NetworkModel(object):
             """
             Query the existence of a named topology and destination.
             
-            Returns the topology fact if it exists, and False otherwise.
+            Returns the topology fact if it exists, and None otherwise.
             """
             if dest in self.topologies and name in self.topologies[dest]:
-                return self.topologies[name][dest]
+                return self.topologies[dest][name]
             else:
-                return False
+                return None
         
         # We're using topologies[DESTINATION_ASSET] = {SET OF TOPOLOGIES} here.
-        def set_topology(self, dest, name):
+        def set_topology(self, dest, name, value=True):
             """
             Sets a named topology to the named destination.
             
@@ -155,19 +171,25 @@ class NetworkModel(object):
             base, False if it will not.
             """
             if dest in self.topologies and name in self.topologies[dest] and \
-                    self.topologies[dest][name]:
+                    self.topologies[dest][name] == value:
                 # No change
                 return False
             elif dest in self.topologies and name in self.topologies[dest]:
-                # Topology "exists" but is wrong
-                self.topologies[dest][name] = True
-                # TODO for hybrid we need a remove here.
-                assert(False) # Should be unreachable.
+                # Topology exists but is wrong
+                old_value = self.topologies[dest][name]
+                self.factset.remove(('topology',self.name,dest,name,old_value,))
+                self.topologies[dest][name] = value
+                self.factset.add(('topology',self.name,dest,name,value,))
+                return True
+            elif dest in self.topologies:
+                # Different topology exists between these assets                
+                self.topologies[dest][name] = value
+                self.factset.add(('topology',self.name,dest,name,value,))
                 return True
             else:
-                # Topology entry does not exist
-                self.factset.add(('topology',self.name,dest,name))
-                self.topologies[dest] = {name : True,}
+                # Topology dictionary does not exist
+                self.factset.add(('topology',self.name,dest,name,value,))
+                self.topologies[dest] = {name : value,}
                 return True
         
         def del_topology(self, dest, name):
@@ -178,9 +200,10 @@ class NetworkModel(object):
             base, False if it will not.
             """
             if dest in self.topologies and name in self.topologies[dest] and \
-                    self.topologies[dest][name]:
+                    self.topologies[dest][name]:                
+                self.factset.remove(('topology',self.name,dest,name,
+                                     self.topologies[dest][name],))
                 del self.topologies[dest][name]
-                self.factset.remove(('topology',self.name,dest,name))
                 return True
             else:
                 # No change
@@ -198,9 +221,11 @@ class NetworkModel(object):
             pstring = ''
             for fact in self.factset:
                 if fact[0] == 'quality':
-                    qstring += '\nq:%s=%s' % (fact[2], fact[3])
+                    qstring += '\n%s:%s=%s' %\
+                               ('token' if type(fact[3]) == str else 'real',
+                                fact[2], fact[3])
                 elif fact[0] == 'platform':
-                    pstring += '\ncpe:/%s' % fact[2] # TODO
+                    pstring += '\ncpe:/%s' % ':'.join(fact[3])
             ret+=qstring
             ret+=pstring
             return ret
@@ -220,11 +245,21 @@ class NetworkModel(object):
         
         for fact in netstate[1]: # Load all our facts into our asset objects:
             if fact[0] == 'quality':
-                self.update_regen(self.assets[fact[1]].set_quality(fact[2],
-                                                                   fact[3]))
+                if len(fact) == 4:
+                    self.update_regen(self.assets[fact[1]]\
+                                      .set_quality(fact[2], fact[3]))
+                else:
+                    assert False # Should not happen.
             elif fact[0] == 'topology':
-                self.update_regen(self.assets[fact[1]].set_topology(fact[2],
-                                                                    fact[3]))
+                if len(fact) == 4: # Token-valued
+                    self.update_regen(self.assets[fact[1]]\
+                                      .set_topology(fact[2], fact[3]))
+                elif len(fact) == 5: # Real-valued?
+                    self.update_regen(self.assets[fact[1]]\
+                                      .set_topology(fact[2], fact[3],
+                                                    value=fact[4]))
+                else:
+                    assert False # Should not happen.
             elif fact[0] == 'platform':
                 self.update_regen(self.assets[fact[1]].set_platform(fact[3]))
         
@@ -249,17 +284,25 @@ class NetworkModel(object):
         """
         return self.assets[source].get_topology(dest, name)
     
-    def set_quality(self, asset, name, value):
+    def set_quality(self, asset, name, value, op='='):
         """
         Sets a named quality on a named asset to a given value.
         """
-        self.update_regen(self.assets[asset].set_quality(name, value))
+        my_value = self.assets[asset].get_quality(name)
+        new_value = ASSIGNOPS[op](my_value, value)
+        self.update_regen(self.assets[asset].set_quality(name, new_value))
     
-    def set_topology(self, source, dest, name):
+    def set_topology(self, source, dest, name, value=True, op=None):
         """
         Sets a named topology between specified assets.
         """
-        self.update_regen(self.assets[source].set_topology(dest, name))
+        if not op: # Token
+            self.update_regen(self.assets[source].set_topology(dest, name))
+        else: # Real
+            my_value = self.assets[source].get_topology(dest, name)
+            new_value = ASSIGNOPS[op](my_value, new_value)
+            self.update_regen(self.assets[source].set_topology(dest, name,
+                                                               new_value))
     
     def set_platform(self, asset, cpe_tuple):
         self.update_regen(self.assets[asset].set_platform(cpe_tuple))
@@ -302,6 +345,25 @@ class NetworkModel(object):
             self.netstate = (assets, facts)
             return self.netstate
     
+    def matches_topology(self, source, dest, name, value=True, op='==',
+                         check_reverse=False):
+        my_value = self.get_topology(source, dest, name)
+        if my_value != None and type(my_value) != type(value):
+            raise TypeError('Cannot match token values with real values.')
+        if check_reverse:
+            return RELOPS[op](my_value, value) and\
+                   matches_topology(self, dest, source, name, value=value,
+                                    op=op)
+        else:
+            return RELOPS[op](my_value, value)
+    
+    def matches_quality(self, asset, name, value, op='=='):
+        my_value = self.get_quality(asset, name)
+        if my_value != None and type(my_value) != type(value):
+            raise TypeError('Cannot match token values with real values: %s.%s %s %s (actual value %s)' \
+                            % (asset, name, op, value, my_value))
+        return RELOPS[op](my_value, value)
+    
     def validate_attack(self, attack, exploit_dict):
         """
         Determines whether a bound attack's preconditions match this netmodel.
@@ -316,30 +378,35 @@ class NetworkModel(object):
         exploit = exploit_dict[attack[0]]
         binding_dict = attack[1]
         
-        # These conditions are all WAY too simplistic for the hybrid extensions.
-        # All we're doing here is checking generated fact tuples of the
-        # preconditions for membership in the network model's fact base. TODO:
-        # for the hybrid extensions we will need to do more rigorous testing
-        # based on operators and actually querying and parsing the individual
-        # facts in the factbase.
         for precondition in exploit.preconditions:
             if precondition.type == 'quality':
-                fact = ('quality', binding_dict[precondition.asset],
-                        precondition.name, precondition.value)
-                if fact not in self.to_netstate()[1]:
+                if not self.matches_quality(binding_dict[precondition.asset],
+                                            precondition.name,
+                                            precondition.value,
+                                            precondition.operator):
                     return False
             elif precondition.type == 'topology':
-                fact = ('topology', binding_dict[precondition.source],
-                        binding_dict[precondition.dest], precondition.name)
-                if fact not in self.to_netstate()[1]:
+                bothways = precondition.direction == '<->'
+                if precondition.value and precondition.operator: # Real.
+                    ret = self.matches_topology(binding_dict[precondition.source],
+                                                binding_dict[precondition.dest],
+                                                precondition.name,
+                                                precondition.value,
+                                                precondition.operator,
+                                                check_reverse=bothways)
+                else: # Token
+                    ret = self.matches_topology(binding_dict[precondition.source],
+                                                binding_dict[precondition.dest],
+                                                precondition.name,
+                                                check_reverse=bothways)
+                if not ret:
                     return False
-                if precondition.direction == '<->': # Test opposite direction?
-                    fact = ('topology', binding_dict[precondition.source],
-                            binding_dict[precondition.dest], precondition.name)
-                    if fact not in self.to_netstate()[1]:
-                        return False
+            elif precondition.type == 'platform':
+                platform_tuple = platform_tuple_from_parse(precondition)
+                if not self.assets[binding_dict[precondition.asset]].has_platform(platform_tuple):
+                    return False
             else:
-                return False
+                raise TypeError('Unknown fact type %s.' % precondition.type)
         return True
     
     def get_state_graph(self, label=False):
@@ -347,13 +414,29 @@ class NetworkModel(object):
         for asset in self.assets:
             node_label = str(self.assets[asset])
             if label:
-                node_label = label + ':' + node_label
+                node_label = label + '.' + node_label
             state_graph.add_node(asset, label=node_label)
         for asset in self.assets:
             for fact in self.assets[asset].get_facts():
                 if fact[0] == 'topology':
-                    state_graph.add_edge(fact[1],fact[2],label=fact[3])
+                    if type(fact[4]) == float:
+                        lbl = '%s=%d' % (fact[3], fact[4])
+                    else:
+                        lbl = fact[3]
+                    state_graph.add_edge(fact[1],fact[2],label=lbl)
         return state_graph
+
+def platform_tuple_from_parse(fact):
+    if fact.type != 'platform':
+        raise TypeError('Not a platform.')
+    platform_tuple = (fact.component_type, fact.vendor, fact.product,
+                      fact.version, fact.update, fact.edition, fact.lang)
+    last_value_index = 0
+    for i in range(len(platform_tuple)):
+        if platform_tuple[i]:
+            last_value_index = i
+    platform_tuple = platform_tuple[:last_value_index+1]
+    return platform_tuple
 
 def get_attack_bindings(network_model, exploit_dict):
     """
@@ -368,6 +451,7 @@ def get_attack_bindings(network_model, exploit_dict):
     
     # For every exploit:
     for exploit_name in exploit_dict:
+        print exploit_name
         exploit = exploit_dict[exploit_name]
         
         # Generate a list of permutations of network assets the length
@@ -391,7 +475,6 @@ def get_successor_state(network_state, attack, exploit_dict):
     """
     Returns the successor state of applying an attack to a network state.
     """
-    
     # Assets are currently always unchanged.
     successor_assets = network_state[0]
     
@@ -401,17 +484,22 @@ def get_successor_state(network_state, attack, exploit_dict):
     
     # Successively apply each of the exploit's postconditions according to
     # our chosen binding:
-    # TODO: platforms    
     for postcondition in exploit_dict[attack[0]].postconditions:
-        if postcondition.operation == 'insert':
+        if postcondition.operation in ('insert', 'update'):
             if postcondition.type == 'topology':
                 network_model.set_topology(binding_dict[postcondition.source],
                                            binding_dict[postcondition.dest],
-                                           postcondition.name)
+                                           postcondition.name,
+                                           value=postcondition.value,
+                                           op=postcondition.operator)
             elif postcondition.type == 'quality':
                 network_model.set_quality(binding_dict[postcondition.asset],
                                           postcondition.name,
-                                          postcondition.value)
+                                          postcondition.value,
+                                          op=postcondition.operator)
+            elif postcondition.type == 'platform':
+                network_model.set_platform(binding_dict[postcondition.asset],
+                                          platform_tuple_from_parse(postcondition.platform))
         elif postcondition.operation == 'delete':
             if postcondition.type == 'topology':
                 network_model.del_topology(binding_dict[postcondition.source],
@@ -420,8 +508,12 @@ def get_successor_state(network_state, attack, exploit_dict):
             elif postcondition.type == 'quality':
                 network_model.del_quality(binding_dict[postcondition.asset],
                                           postcondition.name)
+            elif postcondition.type == 'platform':
+                network_model.del_platform(binding_dict[postcondition.asset],
+                                          platform_tuple_from_parse(postcondition.platform))
         else:
-            assert(False) # Should be unreachable.
+            raise TypeError('Unknown postcondition operator %s' \
+                            % (postcondition.operation,))
     
     # Freeze the mutable network model object into a hashable, immutable
     # network state tuple-of-frozensets, which we then return:
@@ -488,7 +580,6 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
         # For each valid attack in that state:
         for attack in get_attacks(analysis_model, exploit_dict,
                                   attack_bindings):
-            
             # Generate the successor state:
             successor_state = get_successor_state(analysis_state, attack,
                                                   exploit_dict)
@@ -497,9 +588,8 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
             if successor_state == analysis_state:
                 continue
             
-            if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s\n%s" % \
-                (attack, exploit_dict[attack[0]], successor_state,
-                 str(analysis_state == successor_state))
+            if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                (attack, exploit_dict[attack[0]], successor_state)
             
             # If the successor state does not exist, add it to the list to
             # be analyzed on the next iteration and the attack graph.
@@ -509,7 +599,7 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                 successor_states.append(successor_state)
                 attack_graph.add_node(successor_state, label=next_label)
                 next_label+=1
-            
+            if DEBUG: print analysis_state in attack_graph, successor_state in attack_graph
             # Add the state transition to the attack graph
             attack_graph.add_edge(analysis_state, successor_state,
                                   label=get_pretty_attack(attack, exploit_dict))
@@ -517,35 +607,42 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
     return generate_attack_graph(successor_states, depth-1, exploit_dict,
                                  attack_bindings, attack_graph, next_label)
 
-# TODO: This is currently totally discrete:
 def nsfactlist_from_nm(netmodel):
     """
     Returns a list of facts in the fact tuple format from a raw netmodel parse.
     """
     factlist = []
     for netmodel_fact in netmodel.facts:
-        print netmodel_fact
-        if netmodel_fact.type == 'quality':
+        if netmodel_fact.type == 'quality': # For qualities:
+            # Discrete/real detection is taken care of by the parser.
             factlist.append((netmodel_fact.type, netmodel_fact.asset,
                          netmodel_fact.name, netmodel_fact.value))
         elif netmodel_fact.type == 'topology':
-            factlist.append((netmodel_fact.type, netmodel_fact.source,
-                         netmodel_fact.dest, netmodel_fact.name))
+            if netmodel_fact.value and type(netmodel_fact.value) == float:
+                # Real value; make a 5-tuple
+                fact = (netmodel_fact.type, netmodel_fact.source,
+                        netmodel_fact.dest, netmodel_fact.name,
+                        netmodel_fact.value)
+            else:
+                # Token value (no value); make a 4-tuple
+                fact = (netmodel_fact.type, netmodel_fact.source,
+                        netmodel_fact.dest, netmodel_fact.name)
+            factlist.append(fact)
+            # If necessary, also add the reverse:
             if netmodel_fact.direction == '<->':
-                factlist.append((netmodel_fact.type, netmodel_fact.dest,
-                                 netmodel_fact.source, netmodel_fact.name))
+                rev_fact = (netmodel_fact.type, netmodel_fact.dest,
+                            netmodel_fact.source, netmodel_fact.name)
+                if len(fact) > len(rev_fact):
+                    assert len(fact) == 5
+                    # Add the value if it's token-valued; this code will
+                    # work for cases where the real fact tuple is
+                    # arbitrarily longer than the token fact.
+                    rev_fact += fact[len(rev_fact)-len(fact):]
+                factlist.append(rev_fact)
         elif netmodel_fact.type == 'platform':
-            platform_tuple = (netmodel_fact.component_type, netmodel_fact.vendor,
-                              netmodel_fact.product, netmodel_fact.version,
-                              netmodel_fact.update, netmodel_fact.edition,
-                              netmodel_fact.lang)
-            last_value_index = 0
-            for i in range(len(platform_tuple)):
-                if platform_tuple[i]:
-                    last_value_index = i
-            platform_tuple = platform_tuple[:last_value_index+1]
-            print platform_tuple
-            platform_name = ':'.join(platform_tuple)
+            # Platforms are neither token nor real valued.
+            platform_tuple = platform_tuple_from_parse(netmodel_fact)
+            platform_name = '.'.join(platform_tuple)
             factlist.append((netmodel_fact.type, netmodel_fact.asset,
                              platform_name, platform_tuple))
     return factlist
@@ -554,6 +651,7 @@ def ns_from_nm(netmodel):
     """
     Returns a network state tuple-of-frozensets from a raw network model parse.
     """
+    print netmodel.assets
     assets = frozenset(netmodel.assets)
     facts = frozenset(nsfactlist_from_nm(netmodel))
     return (assets, facts)
@@ -577,6 +675,7 @@ def main(nm_file, xp_file, depth):
     outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
     global ag
     ag = build_attack_graph(nm_file, xp_file, int(depth))
+    print 'Visualizing.'
     nx.write_dot(ag, outname)
     stategraphs = []
     for node in ag.nodes_iter():

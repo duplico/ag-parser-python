@@ -1,0 +1,39 @@
+exploit CVE_2008_0166_1(a, l)=
+    preconditions:
+        platform:l,cpe:/a:openssl_project:openssl:0.9.8c-1;
+        topology:a->l,connected_network_ssh;
+    postconditions:
+        insert topology:a->l,access_user;
+.
+
+exploit CVE_2008_0600_1(a,l)=
+    preconditions:
+        topology:a->l,access_user;
+        platform:l,cpe:/o:linux:kernel:2.6.24;
+    postconditions:
+        insert topology:a->l,access_admin;
+.
+
+exploit blunder_grade(a,w)=
+    preconditions:
+        platform:w,cpe:/a:isec:blundergrades;
+        topology:a->w,access_other_blunderdome;
+    postconditions:
+        insert quality:w,grade=A;
+.
+
+exploit ssh_http_tunnel(a,l,w)=
+    preconditions:
+        topology:a->l,connected_network_ssh;
+        topology:l->w,connected_network_http;
+    postconditions:
+        insert topology:a->w,connected_network_http;
+.
+
+exploit blunder_login(a,l,w)=
+    preconditions:
+        topology:a->w,connected_network_http;
+        topology:a->l,access_admin;
+    postconditions:
+        insert topology:a->w,access_other_blunderdome;
+.

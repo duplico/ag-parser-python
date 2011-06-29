@@ -1,17 +1,16 @@
 exploit exploit_1(asset_param_1,asset_param_2)=
     preconditions:
-        quality:asset_param_1,quality_1==1;
+        quality:asset_param_1,quality_1=value_1;
         topology:asset_param_1->asset_param_2,topology_1;
-        platform:asset_param_1,cpe:/o::windows_2000;
     postconditions:
         delete topology:asset_param_1->asset_param_2,topology_1;
-        insert quality:asset_param_1,quality_1*=2;
+        insert topology:asset_param_2->asset_param_1,topology_1;
 .
 
 exploit exploit_2(asset_param_1,asset_param_2)=
     preconditions:
-        quality:asset_param_1,quality_1==2;
-        quality:asset_param_2,quality_1==2;
+        quality:asset_param_1,quality_1=value_2;
+        topology:asset_param_1->asset_param_2,topology_1;
     postconditions:
-        insert topology:asset_param_1<->asset_param_2,topology_2;
+        insert quality:asset_param_2,quality_1=value_2;
 .

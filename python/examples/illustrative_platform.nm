@@ -5,9 +5,9 @@ network model =
         asset_3;
 
     facts :
-        quality:asset_1,quality_1=value_1;
-        quality:asset_2,quality_1=value_2;        
-        quality:asset_3,quality_1=value_2;
+        quality:asset_1,quality_1:=1;
+        quality:asset_2,quality_1:=2;        
+        quality:asset_3,quality_1:=2;
         topology:asset_1->asset_2,topology_1;
         topology:asset_2<->asset_3,topology_2;
         platform:asset_1,cpe:/o:microsoft::windows_2000;

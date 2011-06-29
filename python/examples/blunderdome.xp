@@ -14,7 +14,7 @@ exploit CVE_2008_0600_1(a,l)=
         insert topology:a->l,access_admin;
 .
 
-exploit blunder_grade(a,w)=
+exploit blunder_sqli(a,w)=
     preconditions:
         platform:w,cpe:/a:isec:blundergrades;
         topology:a->w,access_other_blunderdome;
@@ -25,6 +25,7 @@ exploit blunder_grade(a,w)=
 exploit ssh_http_tunnel(a,l,w)=
     preconditions:
         topology:a->l,connected_network_ssh;
+        topology:a->l,access_user;
         topology:l->w,connected_network_http;
     postconditions:
         insert topology:a->w,connected_network_http;

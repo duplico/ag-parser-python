@@ -337,8 +337,11 @@ class NetworkModel(object):
         else:
             return OPERATORS[op](my_value, value)
     
-    def matches_quality(self, asset, name, value, operator):
-        pass
+    def matches_quality(self, asset, name, value, op='=='):
+        my_value = self.get_quality(asset, name)
+        if my_value != None and type(my_value) != type(value):
+            raise TypeError('Cannot match token values with real values.')
+        return OPERATORS[op](my_value, value)
     
     def validate_attack(self, attack, exploit_dict): # TODO: hybrid
         """
@@ -354,21 +357,13 @@ class NetworkModel(object):
         exploit = exploit_dict[attack[0]]
         binding_dict = attack[1]
         
-        # These conditions are all WAY too simplistic for the hybrid extensions.
-        # All we're doing here is checking generated fact tuples of the
-        # preconditions for membership in the network model's fact base. TODO:
-        # for the hybrid extensions we will need to do more rigorous testing
-        # based on operators and actually querying and parsing the individual
-        # facts in the factbase.
         for precondition in exploit.preconditions:
             if precondition.type == 'quality':
-                if precondition.operator in IDENTITY_OPERATORS:
-                    fact = ('quality', binding_dict[precondition.asset],
-                            precondition.name, precondition.value)
-                    if fact not in self.to_netstate()[1]:
-                        return False
-                else:
-                    pass
+                if not self.matches_quality(binding_dict[precondition.asset],
+                                            precondition.name,
+                                            precondition.value,
+                                            precondition.operator):
+                    return False
             elif precondition.type == 'topology':
                 bothways = precondition.direction == '<->'
                 if precondition.value and precondition.operator: # Real.

@@ -24,6 +24,9 @@ comma = Suppress(',')
 lpar = Suppress('(')
 rpar = Suppress(')')
 
+group_dec = Literal('group') + Literal('(') + atom('group')('group') + Literal(')')
+global_dec = Literal('global')('globl')
+
 real_assignop = oneOf(':= += -= *= /=')
 tok_assignop = Literal('=')
 real_relop = oneOf('== <> >= <= > <')
@@ -91,7 +94,8 @@ networkmodel = Combine(Literal('network') + Literal('model'), joinString=' ', \
 # Parser for exploit patterns
 
 factop = oneOf('insert delete update')('operation') + assignfact
-exploit = Suppress('exploit') + atom('name') + lpar + \
+exploit = Optional(global_dec) + Optional(group_dec) + \
+          Suppress('exploit') + atom('name') + lpar + \
           Group(delimitedList(atom))('params') + rpar + Suppress('=') + \
           'preconditions' + colon + \
           Group(ZeroOrMore(Group(relfact)))('preconditions') + \

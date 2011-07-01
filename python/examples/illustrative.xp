@@ -1,4 +1,4 @@
-exploit exploit_1(asset_param_1,asset_param_2)=
+global group(time) exploit exploit_1(asset_param_1,asset_param_2)=
     preconditions:
         quality:asset_param_1,quality_1=value_1;
         topology:asset_param_1->asset_param_2,topology_1;
@@ -7,7 +7,7 @@ exploit exploit_1(asset_param_1,asset_param_2)=
         insert quality:asset_param_1,quality_1=value_2;
 .
 
-exploit exploit_2(asset_param_1,asset_param_2)=
+global group(time) exploit exploit_2(asset_param_1,asset_param_2)=
     preconditions:
         quality:asset_param_1,quality_1=value_2;
         quality:asset_param_2,quality_1=value_2;

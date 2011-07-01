@@ -465,16 +465,35 @@ def get_attack_bindings(network_model, exploit_dict):
     return attacks
 
 def get_pretty_attack(attack, exploit_dict):
-    exploit = exploit_dict[attack[0]]
-    params = []
-    for formal_parameter in exploit.params:
-        params.append(attack[1][formal_parameter])
-    return '%s(%s)' % (attack[0], ',\n'.join(params))
+    if type(attack) == tuple: # single attack
+        exploit = exploit_dict[attack[0]]
+        params = []
+        for formal_parameter in exploit.params:
+            params.append(attack[1][formal_parameter])
+        return '%s(%s)' % (attack[0], ',\n'.join(params))
+    else:
+        exploit_string = ''
+        for a in attack:
+            if exploit_string:
+                exploit_string += ',\n'
+            if exploit_dict[a[0]].globl:
+                exploit_string += 'global '
+            exploit_string += get_pretty_attack(a, exploit_dict)
+        if exploit_dict[a[0]].group:
+            exploit_string = 'group(%s)\n{%s}' % (exploit_dict[a[0]].group,
+                                                 exploit_string)
+        return exploit_string
 
-def get_successor_state(network_state, attack, exploit_dict):
+def get_successor_state(network_state, attacks, exploit_dict):
     """
     Returns the successor state of applying an attack to a network state.
     """
+    if not attacks:
+        return network_state
+    
+    attack = attacks
+    if type(attack) == list: # For multiple attacks, need to apply to 1st.
+        attack = attack[0]
     # Assets are currently always unchanged.
     successor_assets = network_state[0]
     
@@ -517,17 +536,64 @@ def get_successor_state(network_state, attack, exploit_dict):
     
     # Freeze the mutable network model object into a hashable, immutable
     # network state tuple-of-frozensets, which we then return:
-    return network_model.to_netstate()
+    ret_state = network_model.to_netstate()
+    
+    if type(attacks[0]) == tuple: # It's a TUPLE of attacks, need to apply all.
+        get_successor_state(ret_state, attacks[1:], exploit_dict)
+    
+    return ret_state
 
 def get_attacks(network_model, exploit_dict, attack_bindings):
     """
     Returns all attacks that can be launched against the network in its state.
     """
-    # This list comprehension simply copies the attacks out of attack_bindings
-    # that happen to validate their preconditions according to the network
-    # model object's validate_attack method.
-    return [attack for attack in attack_bindings \
-            if network_model.validate_attack(attack, exploit_dict)]
+    # This function uses list comprehensions to copies the attacks out of
+    # attack_bindings that validate their preconditions according to the network
+    # model object's validate_attack method called on that attack.
+
+    attacks = [attack for attack in attack_bindings \
+               if network_model.validate_attack(attack, exploit_dict)]
+    
+    non_agg_attacks = [attack for attack in attacks \
+                       if not exploit_dict[attack[0]].globl and \
+                          not exploit_dict[attack[0]].group]
+    
+    group_dict = {} # group is multiple exploits, possibly globals
+    globl_dict = {} # globl is on a single exploit
+    
+    for attack in attacks:
+        group = exploit_dict[attack[0]].group
+        globl = exploit_dict[attack[0]].globl
+        if group:
+            if group in group_dict:
+                group_dict[group].append(attack)
+            else:
+                group_dict[group] = [attack,]
+        if globl:
+            if attack[0] in globl_dict:
+                globl_dict[attack[0]].append(attack)
+            else:
+                globl_dict[attack[0]] = [attack,]
+    
+    agg_attacks = []
+    # For grouped attacks (includes grouped global attacks):
+    for group_id in group_dict:
+        group_attacks = group_dict[group_id]
+        agg_group = []
+        for attack in group_attacks:
+            if attack[0] in globl_dict:
+                agg_group += globl_dict[attack[0]]
+                # An attack can only be in one group, so:
+                del globl_dict[attack[0]]
+            else:
+                agg_group.append(attack)
+        agg_attacks.append(agg_group)
+    for globl_attack in globl_dict:
+        agg_attacks.append(tuple(globl_dict[globl_attack]))
+    
+    print 'attacks', attacks, '\n\nagg_attacks', agg_attacks
+    
+    return non_agg_attacks + agg_attacks
 
 def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
                           attack_graph=None, next_label=0):
@@ -588,8 +654,13 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
             if successor_state == analysis_state:
                 continue
             
-            if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
-                (attack, exploit_dict[attack[0]], successor_state)
+            if DEBUG:
+                if type(attack) == tuple: # single attack
+                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                    (attack, exploit_dict[attack[0]], successor_state)
+                else: # multiple attack
+                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                    (attack, '(group)', successor_state)
             
             # If the successor state does not exist, add it to the list to
             # be analyzed on the next iteration and the attack graph.

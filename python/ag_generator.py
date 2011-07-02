@@ -564,11 +564,15 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
     for attack in attacks:
         group = exploit_dict[attack[0]].group
         globl = exploit_dict[attack[0]].globl
+        # Ordered tuple of the assets we're binding to the parameters:
+        binding = tuple([attack[1][param_name] for param_name in exploit_dict[attack[0]].params])
         if group:
-            if group in group_dict:
-                group_dict[group].append(attack)
+            if group in group_dict and binding in group_dict[group]:
+                group_dict[group][binding].append(attack)
+            elif group in group_dict:
+                group_dict[group][binding] = [attack,]
             else:
-                group_dict[group] = [attack,]
+                group_dict[group] = {binding : [attack,]}
         if globl:
             if attack[0] in globl_dict:
                 globl_dict[attack[0]].append(attack)
@@ -579,19 +583,33 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
     # For grouped attacks (includes grouped global attacks):
     for group_id in group_dict:
         group_attacks = group_dict[group_id]
-        agg_group = []
-        for attack in group_attacks:
-            if attack[0] in globl_dict:
-                agg_group += globl_dict[attack[0]]
-                # An attack can only be in one group, so:
-                del globl_dict[attack[0]]
-            else:
-                agg_group.append(attack)
-        agg_attacks.append(agg_group)
+        for binding in group_attacks:
+            agg_group = []
+            group_is_global = None
+            for attack in group_attacks[binding]: # GROUPS are per-binding
+                if attack[0] in globl_dict: # group+global
+                    # If it is both grouped and global, globl_dict contains
+                    # all possible bindings for the particular attack:
+                    agg_group += globl_dict[attack[0]]
+                    # A global grouped attack will only be invoked once,
+                    # and it's being added now, so don't consider it later:
+                    del globl_dict[attack[0]]
+                    # If the group is global, we are going to add 
+                    if not group_is_global and type(group_is_global) == bool:
+                        assert False # NO MIXING GLOBAL AND NONGLOBAL IN A GROUP
+                    group_is_global = True
+                else: # Not global
+                    if group_is_global:
+                        assert False # NO MIXING GLOBAL AND NONGLOBAL IN A GROUP
+                    group_is_global = False
+                    agg_group.add(attack)
+            agg_attacks.append(agg_group)
+            if group_is_global:
+                break # No need to concern ourselves with other bindings, as
+                      # the global functionality has added all possible
+                      # bindings already.
     for globl_attack in globl_dict:
-        agg_attacks.append(tuple(globl_dict[globl_attack]))
-    
-    print 'attacks', attacks, '\n\nagg_attacks', agg_attacks
+        agg_attacks.append(list(globl_dict[globl_attack]))
     
     return non_agg_attacks + agg_attacks
 

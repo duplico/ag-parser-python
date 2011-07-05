@@ -587,6 +587,9 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
             agg_group = []
             group_is_global = None
             for attack in group_attacks[binding]: # GROUPS are per-binding
+                # TODO: is it possible to fail to include an attack due to a
+                # lack of existence of a particular binding, even though
+                # other global bindings may exist in the same group?
                 if attack[0] in globl_dict: # group+global
                     # If it is both grouped and global, globl_dict contains
                     # all possible bindings for the particular attack:

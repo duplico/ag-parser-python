@@ -1,0 +1,26 @@
+exploit poll_tag(r, t)=
+    preconditions:
+        platform:r,cpe:/h:::::reader;
+        platform:t,cpe:/h:::::at;
+        quality:r,clock==600;
+        quality:t,status=up;
+        topology:r<->t,distance <= 7;
+    postconditions:
+        quality:t,timeout:=30;
+        quality:t,mode=wake;
+        quality:r,clock:=0;
+.
+
+exploit keep_awake(r, t)=
+    preconditions:
+        platform:r,cpe:/h:::::reader;
+        platform:t,cpe:/h:::::at;
+        quality:t,status=up;
+        quality:t,timeout < 30;
+        quality:r,rogue=true;
+        topology:r<->t,distance<=7;
+    postconditions:
+        quality:t,mode=wake;
+        quality:t,timeout:=30;
+.
+

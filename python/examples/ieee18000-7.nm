@@ -1,0 +1,31 @@
+network model = 
+    assets :
+        reader;
+        tag1;
+        tag2;
+        rogue_reader;
+    
+    facts :
+        platform:tag1,cpe:/h:evigia:ev3:::at;
+        quality:tag1,mode=wake; # test
+        quality:tag1,status=up;
+        quality:tag1,battery:=1000;
+        quality:tag1,timeout:=30;
+        
+        quality:tag2,mode=wake;
+        quality:tag2,status=up;
+        quality:tag2,battery:=1000;
+        quality:tag2,timeout:=30;
+        platform:tag2,cpe:/h:evigia:ev3:::at;
+        
+        quality:reader,clock:=0;
+        platform:reader,cpe:/h:evigia:ev3:::reader;
+        
+        platform:rogue_reader,cpe:/h:evigia:ev3:::reader;
+        quality:rogue_reader,rogue=true;
+        
+        topology:reader<->tag1,distance:=5;
+        topology:reader<->tag2,distance:=5;
+        topology:tag1<->rogue_reader,distance:=10;
+        topology:tag2<->rogue_reader,distance:=5;
+.

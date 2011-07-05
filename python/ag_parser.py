@@ -1,6 +1,6 @@
 from pyparsing import Word, Suppress, Literal, \
     alphanums, oneOf, ZeroOrMore, OneOrMore, Combine, Group, \
-    delimitedList, Regex, Optional
+    delimitedList, Regex, Optional, pythonStyleComment
 
 # reserved = ['topology', 'quality', 'network', 'model', 'assets', 'facts', \
 #             'insert', 'delete', 'exploit', 'preconditions', 'postconditions',\
@@ -34,8 +34,7 @@ tok_relop = oneOf('= !=')
 
 # TODO: make this work somehow.
 hostdec = (Literal('@') | Literal('!@'))
-hostdec.setParseAction(lambda a: {'@': 'up', '!@': 'down'}[str(a[0])])
-host = hostdec('status') + atom + semi
+host = Group(Optional(hostdec('status')) + atom('name'))
 # Shared grammar elements
 
 cpe = Suppress(Literal('cpe:/')) +\
@@ -86,10 +85,14 @@ relfact = topology_relfact | quality_relfact | platform_fact
 assetlist = 'assets' + colon + Group(OneOrMore(atom + semi))('assets')
 factlist = 'facts' + colon + Group(ZeroOrMore(Group(assignfact)))('facts')
 
+assetlist.ignore(pythonStyleComment)
+factlist.ignore(pythonStyleComment)
+
 networkmodel = Combine(Literal('network') + Literal('model'), joinString=' ', \
                        adjacent=False) + \
                Suppress('=') + assetlist + factlist + \
                dot
+networkmodel.ignore(pythonStyleComment)
 
 # Parser for exploit patterns
 
@@ -98,9 +101,9 @@ exploit = Optional(global_dec) + Optional(group_dec) + \
           Suppress('exploit') + atom('name') + lpar + \
           Group(delimitedList(atom))('params') + rpar + Suppress('=') + \
           'preconditions' + colon + \
-          Group(ZeroOrMore(Group(relfact)))('preconditions') + \
+          Group(OneOrMore(Group(relfact)))('preconditions') + \
           'postconditions' + colon + \
-          Group(ZeroOrMore(Group(factop)))('postconditions') + dot
+          Group(OneOrMore(Group(factop)))('postconditions') + dot
 
 exploits = OneOrMore(Group(exploit))
 
@@ -108,4 +111,4 @@ exploits = OneOrMore(Group(exploit))
 statepredicate = Combine(Literal('state') + Literal('predicate'), joinString=' ', \
                          adjacent=False) + \
                  Suppress('=') + assetlist + \
-                 Group(ZeroOrMore(Group(relfact)))('facts') + dot
+                 Group(OneOrMore(Group(relfact)))('facts') + dot

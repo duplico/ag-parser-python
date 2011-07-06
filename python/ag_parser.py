@@ -61,7 +61,7 @@ topology_relfact = topology_decl + Optional(real_relop('operator') + \
 # Topology assignment fact: may either state a topology (token) or operate on
 # its value (real)
 topology_assignfact = topology_decl + Optional(real_assignop('operator') + \
-                                               atom('value')) + semi
+                                               real('value')) + semi
 
 # Quality relational fact: may test on either the token relations (=, !=) or
 # the real relations (==, <>, >=, <=)
@@ -106,6 +106,7 @@ exploit = Optional(global_dec) + Optional(group_dec) + \
           Group(OneOrMore(Group(factop)))('postconditions') + dot
 
 exploits = OneOrMore(Group(exploit))
+exploits.ignore(pythonStyleComment)
 
 # Parser for state predicates
 statepredicate = Combine(Literal('state') + Literal('predicate'), joinString=' ', \

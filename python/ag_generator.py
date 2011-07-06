@@ -20,6 +20,9 @@ import networkx as nx
 
 DEBUG = True
 
+state_hash_lookup = {}
+agg_states = {} # state hash : node state hash
+
 def identity(old, new):
     """
     Returns its parameter. Used for the literal assignment operators (=, :=).
@@ -352,7 +355,7 @@ class NetworkModel(object):
             raise TypeError('Cannot match token values with real values.')
         if check_reverse:
             return RELOPS[op](my_value, value) and\
-                   matches_topology(self, dest, source, name, value=value,
+                   self.matches_topology(dest, source, name, value=value,
                                     op=op)
         else:
             return RELOPS[op](my_value, value)
@@ -408,7 +411,7 @@ class NetworkModel(object):
             else:
                 raise TypeError('Unknown fact type %s.' % precondition.type)
         return True
-    
+        
     def get_state_graph(self, label=False):
         state_graph = nx.MultiDiGraph()
         for asset in self.assets:
@@ -451,7 +454,7 @@ def get_attack_bindings(network_model, exploit_dict):
     
     # For every exploit:
     for exploit_name in exploit_dict:
-        print exploit_name
+        if DEBUG: print 'loading exploit', exploit_name
         exploit = exploit_dict[exploit_name]
         
         # Generate a list of permutations of network assets the length
@@ -558,7 +561,8 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
                        if not exploit_dict[attack[0]].globl and \
                           not exploit_dict[attack[0]].group]
     
-    group_dict = {} # group is multiple exploits, possibly globals
+    globl_group_dict = {} # grouped globals, list of 
+    group_dict = {} # group is multiple exploits, non globals
     globl_dict = {} # globl is on a single exploit
     
     for attack in attacks:
@@ -566,6 +570,12 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
         globl = exploit_dict[attack[0]].globl
         # Ordered tuple of the assets we're binding to the parameters:
         binding = tuple([attack[1][param_name] for param_name in exploit_dict[attack[0]].params])
+        if group and globl:
+            if group in globl_group_dict:
+                globl_group_dict[group].append(attack)
+            else:
+                globl_group_dict[group] = [attack,]
+            continue
         if group:
             if group in group_dict and binding in group_dict[group]:
                 group_dict[group][binding].append(attack)
@@ -573,44 +583,31 @@ def get_attacks(network_model, exploit_dict, attack_bindings):
                 group_dict[group][binding] = [attack,]
             else:
                 group_dict[group] = {binding : [attack,]}
+            continue
         if globl:
             if attack[0] in globl_dict:
                 globl_dict[attack[0]].append(attack)
             else:
                 globl_dict[attack[0]] = [attack,]
-    
+            continue
     agg_attacks = []
-    # For grouped attacks (includes grouped global attacks):
+        
+    # Global groups:
+    for group_id in globl_group_dict:
+        group_attacks = globl_group_dict[group_id]
+        agg_attacks.append(globl_group_dict[group_id])
+
+    # Non-global groups:
     for group_id in group_dict:
         group_attacks = group_dict[group_id]
         for binding in group_attacks:
-            agg_group = []
-            group_is_global = None
-            for attack in group_attacks[binding]: # GROUPS are per-binding
-                # TODO: is it possible to fail to include an attack due to a
-                # lack of existence of a particular binding, even though
-                # other global bindings may exist in the same group?
-                if attack[0] in globl_dict: # group+global
-                    # If it is both grouped and global, globl_dict contains
-                    # all possible bindings for the particular attack:
-                    agg_group += globl_dict[attack[0]]
-                    # A global grouped attack will only be invoked once,
-                    # and it's being added now, so don't consider it later:
-                    del globl_dict[attack[0]]
-                    # If the group is global, we are going to add 
-                    if not group_is_global and type(group_is_global) == bool:
-                        assert False # NO MIXING GLOBAL AND NONGLOBAL IN A GROUP
-                    group_is_global = True
-                else: # Not global
-                    if group_is_global:
-                        assert False # NO MIXING GLOBAL AND NONGLOBAL IN A GROUP
-                    group_is_global = False
-                    agg_group.add(attack)
-            agg_attacks.append(agg_group)
-            if group_is_global:
-                break # No need to concern ourselves with other bindings, as
-                      # the global functionality has added all possible
-                      # bindings already.
+            agg_attacks.append(group_attacks[binding])
+            for attack in group_attacks[binding]: # TODO: remove. sanity check:
+                if attack[0] in globl_dict: # group+global:
+                    assert(False) # Should be unreachable.
+                    continue
+    
+    # non-grouped global attacks:
     for globl_attack in globl_dict:
         agg_attacks.append(list(globl_dict[globl_attack]))
     
@@ -660,9 +657,11 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
         analysis_model = NetworkModel(analysis_state)
         
         # Add it to the attack graph as a node if we need to (i.e. start state)
-        if analysis_state not in attack_graph:
-            attack_graph.add_node(analysis_state, label=next_label)
+        if hash(analysis_state) not in attack_graph:
+            attack_graph.add_node(hash(analysis_state), label=next_label,
+                                  state=analysis_state)
             next_label+=1
+            state_hash_lookup[hash(analysis_state)] = analysis_state
 
         # For each valid attack in that state:
         for attack in get_attacks(analysis_model, exploit_dict,
@@ -685,15 +684,17 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
             
             # If the successor state does not exist, add it to the list to
             # be analyzed on the next iteration and the attack graph.
-            if successor_state in attack_graph:
+            if hash(successor_state) in attack_graph:
                 pass
             else:
+                state_hash_lookup[successor_state] = successor_state
                 successor_states.append(successor_state)
-                attack_graph.add_node(successor_state, label=next_label)
+                attack_graph.add_node(hash(successor_state), label=next_label,
+                                      state=successor_state)
                 next_label+=1
-            if DEBUG: print analysis_state in attack_graph, successor_state in attack_graph
+            if DEBUG: print hash(analysis_state) in attack_graph, hash(successor_state) in attack_graph, attack_graph.node[hash(successor_state)]
             # Add the state transition to the attack graph
-            attack_graph.add_edge(analysis_state, successor_state,
+            attack_graph.add_edge(hash(analysis_state), hash(successor_state),
                                   label=get_pretty_attack(attack, exploit_dict))
     # Recur (wouldn't tail call optimization be nice?)
     return generate_attack_graph(successor_states, depth-1, exploit_dict,
@@ -715,6 +716,8 @@ def nsfactlist_from_nm(netmodel):
                 fact = (netmodel_fact.type, netmodel_fact.source,
                         netmodel_fact.dest, netmodel_fact.name,
                         netmodel_fact.value)
+            elif netmodel_fact.value:
+                assert False # Nonreal values not allowed on topologies.
             else:
                 # Token value (no value); make a 4-tuple
                 fact = (netmodel_fact.type, netmodel_fact.source,
@@ -743,7 +746,7 @@ def ns_from_nm(netmodel):
     """
     Returns a network state tuple-of-frozensets from a raw network model parse.
     """
-    print netmodel.assets
+    if DEBUG: print 'assets', netmodel.assets
     assets = frozenset(netmodel.assets)
     facts = frozenset(nsfactlist_from_nm(netmodel))
     return (assets, facts)
@@ -771,9 +774,10 @@ def main(nm_file, xp_file, depth):
     nx.write_dot(ag, outname)
     stategraphs = []
     for node in ag.nodes_iter():
+        ag_node = ag.node[node]['state']
         node_out_name = os.path.join(file_prefix, 'nm_state%i.dot' % \
                                      (ag.node[node]['label'],))
-        netmodel = NetworkModel(node)
+        netmodel = NetworkModel(ag_node)
         stategraph = netmodel.get_state_graph(str(ag.node[node]['label']))
         nx.write_dot(stategraph, node_out_name)
         stategraphs.append(stategraph)
@@ -782,7 +786,8 @@ def main(nm_file, xp_file, depth):
     nx.write_dot(stategraphs_union, sg_out_name)
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         print 'usage: python ag_generator.py nmfile xpfile depth'
         sys.exit(1)
+    DEBUG = sys.argv[-1] == '-d'
     main(sys.argv[1], sys.argv[2], int(sys.argv[3]))

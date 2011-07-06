@@ -1,14 +1,14 @@
 exploit poll_tag(r, t)=
     preconditions:
         platform:r,cpe:/h:::::reader;
-        platform:t,cpe:/h:::::at;
+        platform:t,cpe:/h:::::at; # dash7 asset tag
         quality:r,clock==600;
         quality:t,status=up;
         topology:r<->t,distance <= 7;
     postconditions:
-        quality:t,timeout:=30;
-        quality:t,mode=wake;
-        quality:r,clock:=0;
+        update quality:t,timeout:=30;
+        update quality:t,mode=wake;
+        update quality:r,clock:=0;
 .
 
 exploit keep_awake(r, t)=
@@ -20,7 +20,82 @@ exploit keep_awake(r, t)=
         quality:r,rogue=true;
         topology:r<->t,distance<=7;
     postconditions:
-        quality:t,mode=wake;
-        quality:t,timeout:=30;
+        update quality:t,mode=wake;
+        update quality:t,timeout:=30;
 .
 
+global group(time) exploit reader_clock(r)=
+    preconditions:
+        platform:r,cpe:/h:::::reader;
+        quality:r,status=up;
+        quality:r,rogue=false;
+    postconditions:
+        update quality:r,clock+=15;
+.
+
+# tag battery exhaustion, awake, battery remaining
+global group(time) exploit tag_wake_bat(t)=
+    preconditions:
+        platform:t,cpe:/h:::::at;
+        quality:t,status=up;
+        quality:t,mode=wake;
+        quality:t,battery>750;
+    postconditions:
+        update quality:t,battery-=750;
+.
+
+# tag battery exhaustion, asleep, battery remaining
+global group(time) exploit tag_sleep_bat(t)=
+    preconditions:
+        platform:t,cpe:/h:::::at;
+        quality:t,status=up;
+        quality:t,mode=sleep;
+        quality:t,battery>15;
+    postconditions:
+        update quality:t,battery-=15;
+.
+
+# tag battery exhaustion, awake, battery dies
+global group(time) exploit tag_wake_nobat(t)=
+    preconditions:
+        platform:t,cpe:/h:::::at;
+        quality:t,status=up;
+        quality:t,mode=wake;
+        quality:t,battery <= 750;
+    postconditions:
+        update quality:t,battery:=0;
+        delete quality:t,mode=wake;
+        update quality:t,status=down;
+.
+
+# tag battery exhaustion, asleep, battery dies
+global group(time) exploit tag_sleep_nobat(t)=
+    preconditions:
+        platform:t,cpe:/h:::::at;
+        quality:t,status=up;
+        quality:t,mode=sleep;
+        quality:t,battery <= 15;
+    postconditions:
+        update quality:t,battery:=0;
+        delete quality:t,mode=wake;
+        update quality:t,status=down;
+.
+
+global group(time) exploit tag_goto_sleep(t)=
+    preconditions:
+        platform:t,cpe:/h:::::at;
+        quality:t,status=up;
+        quality:t,mode=wake;
+        quality:t,timeout<15;
+    postconditions:
+        update quality:t,timeout:=0;
+        update quality:t,mode=sleep;
+
+global group(time) exploit tag_clock(t)=
+    preconditions:
+        platform:t,cpe:/h:::::at;
+        quality:t,status=up;
+        quality:t,mode=wake;
+        quality:t,timeout>=15;
+    postconditions:
+        update quality:t,timeout-=15;

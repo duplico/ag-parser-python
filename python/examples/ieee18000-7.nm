@@ -19,10 +19,13 @@ network model =
         platform:tag2,cpe:/h:evigia:ev3:::at;
         
         quality:reader,clock:=0;
+        quality:reader,rogue=false;
         platform:reader,cpe:/h:evigia:ev3:::reader;
+        quality:reader,status=up;
         
         platform:rogue_reader,cpe:/h:evigia:ev3:::reader;
         quality:rogue_reader,rogue=true;
+        quality:rogue_reader,status=up;
         
         topology:reader<->tag1,distance:=5;
         topology:reader<->tag2,distance:=5;

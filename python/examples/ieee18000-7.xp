@@ -56,7 +56,7 @@ global group(time) exploit tag_sleep_bat(t)=
 .
 
 # tag battery exhaustion, awake, battery dies
-global group(time) exploit tag_wake_nobat(t)=
+global group(time) exploit tag_wake_to_exhausted(t)=
     preconditions:
         platform:t,cpe:/h:::::at;
         quality:t,status=up;
@@ -69,7 +69,7 @@ global group(time) exploit tag_wake_nobat(t)=
 .
 
 # tag battery exhaustion, asleep, battery dies
-global group(time) exploit tag_sleep_nobat(t)=
+global group(time) exploit tag_sleep_to_exhausted(t)=
     preconditions:
         platform:t,cpe:/h:::::at;
         quality:t,status=up;
@@ -86,16 +86,18 @@ global group(time) exploit tag_goto_sleep(t)=
         platform:t,cpe:/h:::::at;
         quality:t,status=up;
         quality:t,mode=wake;
-        quality:t,timeout<15;
+        quality:t,timeout<=15;
     postconditions:
         update quality:t,timeout:=0;
         update quality:t,mode=sleep;
+.
 
 global group(time) exploit tag_clock(t)=
     preconditions:
         platform:t,cpe:/h:::::at;
         quality:t,status=up;
         quality:t,mode=wake;
-        quality:t,timeout>=15;
+        quality:t,timeout>15;
     postconditions:
         update quality:t,timeout-=15;
+.

@@ -56,7 +56,7 @@ quality_decl = Literal('quality')('type') + colon + atom('asset') + \
 # Topology relational fact: may either state a topology (token) or operate
 # on its value (real)
 topology_relfact = topology_decl + Optional(real_relop('operator') + \
-                                            atom('value')) + semi
+                                            real('value')) + semi
 
 # Topology assignment fact: may either state a topology (token) or operate on
 # its value (real)

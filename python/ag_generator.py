@@ -291,8 +291,10 @@ class NetworkModel(object):
         """
         Sets a named quality on a named asset to a given value.
         """
+        if DEBUG: print 'set quality', asset, name, op, value
         my_value = self.assets[asset].get_quality(name)
         new_value = ASSIGNOPS[op](my_value, value)
+        if DEBUG: print new_value
         self.update_regen(self.assets[asset].set_quality(name, new_value))
     
     def set_topology(self, source, dest, name, value=True, op=None):
@@ -303,7 +305,7 @@ class NetworkModel(object):
             self.update_regen(self.assets[source].set_topology(dest, name))
         else: # Real
             my_value = self.assets[source].get_topology(dest, name)
-            new_value = ASSIGNOPS[op](my_value, new_value)
+            new_value = ASSIGNOPS[op](my_value, value)
             self.update_regen(self.assets[source].set_topology(dest, name,
                                                                new_value))
     
@@ -350,8 +352,10 @@ class NetworkModel(object):
     
     def matches_topology(self, source, dest, name, value=True, op='==',
                          check_reverse=False):
+        if DEBUG: print 'evaluating topology', source, dest, name, op, value
         my_value = self.get_topology(source, dest, name)
-        if my_value != None and type(my_value) != type(value):
+        if my_value != None and type(my_value) == bool:
+            print source,dest,name,op,value
             raise TypeError('Cannot match token values with real values.')
         if check_reverse:
             return RELOPS[op](my_value, value) and\
@@ -365,6 +369,8 @@ class NetworkModel(object):
         if my_value != None and type(my_value) != type(value):
             raise TypeError('Cannot match token values with real values: %s.%s %s %s (actual value %s)' \
                             % (asset, name, op, value, my_value))
+        if not my_value and type(my_value) != int:
+            return False
         return RELOPS[op](my_value, value)
     
     def validate_attack(self, attack, exploit_dict):
@@ -380,6 +386,7 @@ class NetworkModel(object):
 
         exploit = exploit_dict[attack[0]]
         binding_dict = attack[1]
+        if DEBUG: print 'Validating %s on %s' % (exploit.name, binding_dict)
         
         for precondition in exploit.preconditions:
             if precondition.type == 'quality':
@@ -387,6 +394,7 @@ class NetworkModel(object):
                                             precondition.name,
                                             precondition.value,
                                             precondition.operator):
+                    if DEBUG: print 'false quality', precondition
                     return False
             elif precondition.type == 'topology':
                 bothways = precondition.direction == '<->'
@@ -407,9 +415,11 @@ class NetworkModel(object):
             elif precondition.type == 'platform':
                 platform_tuple = platform_tuple_from_parse(precondition)
                 if not self.assets[binding_dict[precondition.asset]].has_platform(platform_tuple):
+                    if DEBUG: print 'false platform'
                     return False
             else:
                 raise TypeError('Unknown fact type %s.' % precondition.type)
+        if DEBUG: print 'True'
         return True
         
     def get_state_graph(self, label=False):
@@ -540,10 +550,8 @@ def get_successor_state(network_state, attacks, exploit_dict):
     # Freeze the mutable network model object into a hashable, immutable
     # network state tuple-of-frozensets, which we then return:
     ret_state = network_model.to_netstate()
-    
-    if type(attacks[0]) == tuple: # It's a TUPLE of attacks, need to apply all.
-        get_successor_state(ret_state, attacks[1:], exploit_dict)
-    
+    if type(attacks[0]) == tuple: # It's a list of attacks, need to apply all.
+        ret_state = get_successor_state(ret_state, attacks[1:], exploit_dict)
     return ret_state
 
 def get_attacks(network_model, exploit_dict, attack_bindings):

@@ -1,0 +1,30 @@
+exploit drain(r, t)=
+    preconditions:
+        quality:r,role=reader;
+        quality:t,role=tag;
+        quality:t,energy>10;
+        topology:r<->t,distance<=6.0;
+    postconditions:
+        update quality:t,energy-=10;
+.
+
+exploit drain_and_die(r, t)=
+    preconditions:
+        quality:r,role=reader;
+        quality:t,role=tag;
+        quality:t,energy<=10;
+        quality:t,energy>0;
+        topology:r<->t,distance<=6.0;
+    postconditions:
+        update quality:t,energy:=0;
+.
+
+exploit approach(r,t)=
+    preconditions:
+        quality:r,role=reader;
+        quality:t,role=tag;
+        topology:r<->t,distance >= 5;
+    postconditions:
+        update topology:r->t,distance -= 1;
+        update topology:t->r,distance -= 1;
+.

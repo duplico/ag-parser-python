@@ -1,0 +1,15 @@
+network model = 
+    assets :
+        tag0;
+        reader;
+
+    facts :
+        quality:tag0,energy:=100;
+        quality:tag0,mode=awake;
+        quality:tag0,role=tag;
+        
+        quality:reader,role=reader;
+        
+        topology:reader<->tag0,distance:=10;
+        topology:reader->tag0,trusted;
+.

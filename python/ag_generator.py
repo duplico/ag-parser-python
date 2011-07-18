@@ -19,7 +19,7 @@ import networkx as nx
 import argparse
 #import matplotlib.pyplot as plt
 
-DEBUG = True
+DEBUG = False
 
 state_hash_lookup = {}
 agg_states = {} # state hash : node state hash
@@ -355,8 +355,8 @@ class NetworkModel(object):
                          check_reverse=False):
         if DEBUG: print 'evaluating topology', source, dest, name, op, value
         my_value = self.get_topology(source, dest, name)
-        if my_value != None and type(my_value) == bool:
-            print source,dest,name,op,value
+        if my_value != None and type(my_value) != type(value):
+            if DEBUG: print source,dest,name,op,value
             raise TypeError('Cannot match token values with real values.')
         if check_reverse:
             return RELOPS[op](my_value, value) and\
@@ -773,26 +773,34 @@ def build_attack_graph(nm_file, xp_file, depth):
     return generate_attack_graph([initial_network_state,], depth, exploit_dict,
                                  get_attack_bindings(netmodel, exploit_dict))
 
-def main(nm_file, xp_file, depth, state_graph=True):
-    nm_file_name = os.path.split(nm_file)[-1]
-    file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
-    outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
-    global ag
-    ag = build_attack_graph(nm_file, xp_file, int(depth))
+def viz_ag(ag, file_prefix, outname, depth, write_states):
     print 'Visualizing.'
     nx.write_dot(ag, outname)
-    stategraphs = []
-    for node in ag.nodes_iter():
-        ag_node = ag.node[node]['state']
-        node_out_name = os.path.join(file_prefix, 'nm_state%i.dot' % \
-                                     (ag.node[node]['label'],))
-        netmodel = NetworkModel(ag_node)
-        stategraph = netmodel.get_state_graph(str(ag.node[node]['label']))
-        nx.write_dot(stategraph, node_out_name)
-        stategraphs.append(stategraph)
-    stategraphs_union = reduce(nx.disjoint_union, stategraphs)
-    sg_out_name = os.path.join(file_prefix, 'ag_sg_depth%i.dot' % (depth,))
-    nx.write_dot(stategraphs_union, sg_out_name)
+    if write_states:
+        stategraphs = []
+        for node in ag.nodes_iter():
+            ag_node = ag.node[node]['state']
+            node_out_name = os.path.join(file_prefix, 'nm_state%i.dot' % \
+                                         (ag.node[node]['label'],))
+            netmodel = NetworkModel(ag_node)
+            stategraph = netmodel.get_state_graph(str(ag.node[node]['label']))
+            nx.write_dot(stategraph, node_out_name)
+            stategraphs.append(stategraph)
+        stategraphs_union = reduce(nx.disjoint_union, stategraphs)
+        sg_out_name = os.path.join(file_prefix, 'ag_sg_depth%i.dot' % (depth,))
+        nx.write_dot(stategraphs_union, sg_out_name)
+
+def main(nm_file, xp_file, depth, state_graph=True):
+    global ag
+    if state_graph:
+        ag = build_attack_graph(nm_file, xp_file, int(depth))
+        
+        nm_file_name = os.path.split(nm_file)[-1]
+        file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
+        outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
+        viz_ag(ag, file_prefix, outname, depth, True)
+    else:
+        raise NotImplementedError('Only state graphs are supported now.')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Attack graph generator')
@@ -808,5 +816,5 @@ if __name__ == '__main__':
     graph_type.add_argument('--state-graph', dest="state", action='store_true')
     
     args= parser.parse_args()
-    
+    DEBUG = args.debug
     main(args.nm, args.xp, args.depth, args.state)

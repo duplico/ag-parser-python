@@ -760,7 +760,7 @@ def ns_from_nm(netmodel):
     facts = frozenset(nsfactlist_from_nm(netmodel))
     return (assets, facts)
 
-def build_attack_graph(nm_file, xp_file, depth):
+def build_attack_graph(nm_file, xp_file, depth, state_graph):
     """
     Return an attack graph from netmodel/exploit files and a maximum "depth".
     """
@@ -769,9 +769,12 @@ def build_attack_graph(nm_file, xp_file, depth):
     exploit_dict = {}
     for exploit in exploits:
         exploit_dict[exploit.name] = exploit
-    initial_network_state = ns_from_nm(netmodel)
-    return generate_attack_graph([initial_network_state,], depth, exploit_dict,
-                                 get_attack_bindings(netmodel, exploit_dict))
+    if state_graph:
+        initial_network_state = ns_from_nm(netmodel)
+        return generate_attack_graph([initial_network_state,], depth, exploit_dict,
+                                     get_attack_bindings(netmodel, exploit_dict))
+    else:
+        raise NotImplementedError('Only state graphs are supported now.')
 
 def viz_ag(ag, file_prefix, outname, depth, write_states):
     print 'Visualizing.'
@@ -792,15 +795,13 @@ def viz_ag(ag, file_prefix, outname, depth, write_states):
 
 def main(nm_file, xp_file, depth, state_graph=True):
     global ag
-    if state_graph:
-        ag = build_attack_graph(nm_file, xp_file, int(depth))
-        
-        nm_file_name = os.path.split(nm_file)[-1]
-        file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
-        outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
-        viz_ag(ag, file_prefix, outname, depth, True)
-    else:
-        raise NotImplementedError('Only state graphs are supported now.')
+    ag = build_attack_graph(nm_file, xp_file, int(depth), state_graph)
+    
+    nm_file_name = os.path.split(nm_file)[-1]
+    file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
+    outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
+    viz_ag(ag, file_prefix, outname, depth, True)
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Attack graph generator')

@@ -16,6 +16,7 @@ import ag_parser
 import itertools
 import operator
 import networkx as nx
+import argparse
 #import matplotlib.pyplot as plt
 
 DEBUG = True
@@ -772,7 +773,7 @@ def build_attack_graph(nm_file, xp_file, depth):
     return generate_attack_graph([initial_network_state,], depth, exploit_dict,
                                  get_attack_bindings(netmodel, exploit_dict))
 
-def main(nm_file, xp_file, depth):
+def main(nm_file, xp_file, depth, state_graph=True):
     nm_file_name = os.path.split(nm_file)[-1]
     file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
     outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
@@ -794,8 +795,18 @@ def main(nm_file, xp_file, depth):
     nx.write_dot(stategraphs_union, sg_out_name)
 
 if __name__ == '__main__':
-    if len(sys.argv) not in (4, 5):
-        print 'usage: python ag_generator.py nmfile xpfile depth'
-        sys.exit(1)
-    DEBUG = sys.argv[-1] == '-d'
-    main(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+    parser = argparse.ArgumentParser(description='Attack graph generator')
+    
+    # TODO: make this more self-documenting.
+    parser.add_argument('--debug', action="store_true", dest="debug", default=False)
+    parser.add_argument('-nm', action="store", dest="nm", required=True)
+    parser.add_argument('-xp', action="store", dest="xp", required=True)
+    parser.add_argument('-d', action="store", type=int, dest="depth", required=True)
+    
+    graph_type = parser.add_mutually_exclusive_group(required=True)
+    graph_type.add_argument('--dependency-graph', dest="dep", action='store_true')
+    graph_type.add_argument('--state-graph', dest="state", action='store_true')
+    
+    args= parser.parse_args()
+    
+    main(args.nm, args.xp, args.depth, args.state)

@@ -57,23 +57,26 @@ app = Flask(__name__)
 
 running_futures = dict()
 
-def get_ag_path(name, depth=None):
+def get_ag_path(name, depth=None, adg=False):
+    assert not (depth and adg)
     ag_string = base64.urlsafe_b64encode(name)
     elements = [AG_DATA_PATH, ag_string]
     if depth:
         elements.append('out_%i' % depth)
+    if adg:
+        elements.append('adg')
     return os.path.join(*elements)
 
-def get_ag_lockfile(name, depth):
-    return os.path.join(get_ag_path(name, depth), '.lock')
+def get_ag_lockfile(name, depth, adg=False):
+    return os.path.join(get_ag_path(name, depth, adg), '.lock')
 
-def ag_exists(name, depth=None):
-    return os.path.isdir(get_ag_path(name, depth))
+def ag_exists(name, depth=None, adg=False):
+    return os.path.isdir(get_ag_path(name, depth, adg))
 
-def get_ag(name, depth):
-    assert(ag_exists(name, depth))
+def get_ag(name, depth=None, adg=False):
+    assert(ag_exists(name, depth, adg))
     # TODO: if name in running_futures, etc etc etc...
-    ag = nx.read_gpickle(os.path.join(get_ag_path(name, depth), 'ag.pickle'))
+    ag = nx.read_gpickle(os.path.join(get_ag_path(name, depth, adg), 'ag.pickle'))
     
     # Some kludges to get it to work with GraphML. Luckily, as the API
     # matures this should be less necessary.
@@ -83,14 +86,16 @@ def get_ag(name, depth):
             ag.node[n][k]=str(ag.node[n][k])
     return ag
 
-def create_ag_files(name, nm=False, xp=False, depth=False):
+def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
     # Returns errors, or None if none.
+    assert not (depth and adg)
+
     parent_path = get_ag_path(name)
     if '\n' in parent_path:
         return 'name is too long'
     
     # Sanity check
-    if not depth:
+    if not depth and not adg:
         assert not os.path.exists(parent_path)
     
     if nm and xp:
@@ -122,16 +127,21 @@ def create_ag_files(name, nm=False, xp=False, depth=False):
         # Sanity check
         assert not os.path.exists(output_path)
         os.makedirs(output_path)
+    if adg:
+        output_path = get_ag_path(name, depth)
+        # Sanity check
+        assert not os.path.exists(output_path)
+        os.makedirs(output_path)
         
     
     return (nmfile, xpfile)
 
-def make_attack_graph(name, nmfile, xpfile, depth):
+def make_attack_graph(name, nmfile, xpfile, depth, adg):
     parent_path = get_ag_path(name)
-    lockfile = get_ag_lockfile(name, depth)
+    lockfile = get_ag_lockfile(name, depth, adg)
     open(lockfile, 'w').close() # Touch the lockfile
-    ag = ag_generator.build_attack_graph(nmfile, xpfile, depth, True)
-    pickle_file = os.path.join(get_ag_path(name, depth), 'ag.pickle')
+    ag = ag_generator.build_attack_graph(nmfile, xpfile, depth, not adg)
+    pickle_file = os.path.join(get_ag_path(name, depth, adg), 'ag.pickle')
     print pickle_file
     nx.write_gpickle(ag, pickle_file)
     os.remove(lockfile)
@@ -192,32 +202,45 @@ def create_nm():
 def generate(name): # TODO: don't generate from here; generate elsewhere...
     # TODO: Check for locked AGs that we're not working on, and regen them.
     # Check that parameters exist.
-    if 'depth' not in request.args:
-        return make_response('depth is required', 400)
+    if 'depth' not in request.args or 'adg' not in request.args:
+        return make_response('depth or adg is required', 400)
+    if 'depth' in request.args and 'adg' in request.args:
+        return make_response('cannot have both depth and adg', 400)
+    if not adg: # State graph
+        try:
+            depth = int(request.args['depth'])
+        except ValueError, e:
+            return make_response('depth must be a number', 400)
     
-    try:
-        depth = int(request.args['depth'])
-    except ValueError, e:
-        return make_response('depth must be a number', 400)
-
+    if 'adg' in request.args:
+        adg = True
+        depth = False
+    
     # AG exists on path:
-    if ag_exists(name, depth):
+    if ag_exists(name, depth, adg):
         return make_response('Attack graph exists', 409)
     
     # New AG:
-    ret = create_ag_files(name, depth=depth)
+    ret = create_ag_files(name, depth=depth, adg=adg)
     if type(ret) == str:
         return make_response(ret, 400)
     else:
-        task = executor.submit(make_attack_graph, name, ret[0], ret[1], depth)
+        task = executor.submit(make_attack_graph, name, ret[0], ret[1], depth, adg)
         if name not in running_futures:
             running_futures[name] = dict()
-        running_futures[name][depth] = task
+        if adg:
+            running_futures[name]['adg'] = task
+        else:
+            running_futures[name][depth] = task
         print running_futures
         print task.running()
+    if not adg:
+        return make_response(flask.url_for('read_ag', name=name, depth=depth), 202)
+    else:
+        return make_response(flask.url_for('read_adg', name=name), 202)
     
-    return make_response(flask.url_for('read_ag', name=name, depth=depth), 202)
-    # TODO: consider waiting very briefly to see if we can return a 201 fast
+    # ADG:
+    
 
 @app.route('/v0/attackgraphs/<name>/<int:depth>/', methods=['GET',])
 def read_ag(name, depth):
@@ -237,6 +260,48 @@ def read_ag(name, depth):
     
     # Exists, and we can return it.
     ag = get_ag(name, depth)
+    
+    # Defaults to dot
+    out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('*', '*') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('text', '*') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('text', 'xml') : (nx.write_graphml, 'text/xml'), # UTF8=>text
+                 ('application', 'pdf') : (lambda a,b: write_pdf(name, depth, a, b), 'text/application/pdf'),
+                 ('image', 'png') : (lambda a,b: write_png(name,depth,a,b), 'text/image/png'),
+        }
+    # Check what format the client requested:
+    accept_type = flask.request.headers['Accept']
+    # This just splits and strips the MIME into a 2-tuple
+    accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
+    out_tuple = out_types[accept_mime] # tuple of (callable, canonical MIME)
+
+    outstring = StringIO() # Fake a file handle here to play nice with nx.
+    out_tuple[0](ag, outstring) # Call our output function
+    resp = make_response(outstring.getvalue(), 200) # Response
+    resp.mimetype=out_tuple[1] # Correct the MIME according to out_tuple
+    resp.implicit_sequence_conversion=False
+    resp.data = outstring.getvalue()
+    return resp
+
+# TODO: refactor to DRY
+@app.route('/v0/attackgraphs/<name>/adg/', methods=['GET',])
+def read_adg(name):
+    """
+    Defaults to dot format.
+    """
+    # Check for existence
+    if not os.path.isdir(get_ag_path(name)):
+        return make_response('unknown AG name %s' % (name,), 404)
+    if os.path.isfile(get_ag_lockfile(name, adg=True)):
+        if name not in running_futures or 'adg' not in running_futures[name]:
+            os.rmdir(get_ag_path(get_ag_path(name))) # TODO: readd: , depth, adg)))
+            return make_response('internal error, resubmit generation request',
+                                 500)
+        else:
+            return make_response('still processing', 122)
+    
+    # Exists, and we can return it.
+    ag = get_ag(name, depth=False, adg=True)
     
     # Defaults to dot
     out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),

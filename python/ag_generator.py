@@ -374,6 +374,16 @@ class NetworkModel(object):
             return False
         return RELOPS[op](my_value, value)
     
+    def matches_fact(self, fact): # checks if the netmodel matches a fact tuple
+        print 'matches_fact ' + str(fact)
+        if fact[0] == 'quality':
+            return self.matches_quality(*fact[1:])
+        if fact[0] == 'topology':
+            return self.matches_topology(*fact[1:])
+        if fact[0] == 'platform':
+            return self.assets[fact[1]].has_platform(fact[2])
+        raise TypeError('Unknown fact type')
+    
     def validate_attack(self, attack, exploit_dict):
         """
         Determines whether a bound attack's preconditions match this netmodel.
@@ -478,18 +488,19 @@ def get_attack_bindings(network_model, exploit_dict):
                        param_bindings)
     return attacks
 
-def get_pretty_attack(attack, exploit_dict):
+def get_pretty_attack(attack, exploit_dict, sep='\n'):
+    sep = ','+sep
     if type(attack) == tuple: # single attack
         exploit = exploit_dict[attack[0]]
         params = []
         for formal_parameter in exploit.params:
             params.append(attack[1][formal_parameter])
-        return '%s(%s)' % (attack[0], ',\n'.join(params))
+        return '%s(%s)' % (attack[0], sep.join(params))
     else:
         exploit_string = ''
         for a in attack:
             if exploit_string:
-                exploit_string += ',\n'
+                exploit_string += sep
             if exploit_dict[a[0]].globl:
                 exploit_string += 'global '
             exploit_string += get_pretty_attack(a, exploit_dict)
@@ -709,66 +720,196 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
     return generate_attack_graph(successor_states, depth-1, exploit_dict,
                                  attack_bindings, attack_graph, next_label)
 
-def generate_dependency_graph(exploit_dict, attack_bindings):
-    attack_graph = nx.DiGraph()
-    
-    ##################### TODO: work has not progressed past this line ########
-    
-    # This will hold the new (not existing) states that succeed the states
-    # in analysis_states; on the next recursion these will be the new
-    # analysis_states.
-    successor_states = []
+def get_bound_condition(condition, binding_dict):
+    if condition.type == 'topology':
+        ret = ('topology', binding_dict[condition.source],
+               binding_dict[condition.dest],
+               condition.name) # TODO: this is discrete only.
+        if condition.direction == '<->':
+            ret = [ret,
+                   ('topology', binding_dict[condition.dest],
+                    binding_dict[condition.source],
+                    condition.name)]
+        return ret
+    elif condition.type == 'quality':
+        return ('quality', binding_dict[condition.asset],
+                condition.name,
+                condition.value) # TODO: this is discrete only
+    elif condition.type == 'platform':
+        return ('platform', binding_dict[condition.asset],
+                platform_tuple_from_parse(condition))
 
-    # For each state to be processed for successors:
-    for analysis_state in analysis_states:
-        if DEBUG: print "Analysis state: %s" % str(analysis_state)
-        
-        # Construct a mutable, easy-to-analyze NetworkModel of it:
-        analysis_model = NetworkModel(analysis_state)
-        
-        # Add it to the attack graph as a node if we need to (i.e. start state)
-        if hash(analysis_state) not in attack_graph:
-            attack_graph.add_node(hash(analysis_state), label=next_label,
-                                  state=analysis_state)
-            next_label+=1
-            state_hash_lookup[hash(analysis_state)] = analysis_state
+def generate_dependency_graph(exploit_dict, attack_bindings, initial_state):
+    adg = nx.DiGraph()
+    and_index = 0
+    nm = NetworkModel(initial_state)
+    
+    # For every possible attack:
+    for binding in attack_bindings:
+        attack_node = get_pretty_attack(binding, exploit_dict, sep=' ')
+        src_node = attack_node
+        adg.add_node(attack_node, shape='box', adg_type='attack',
+                     adg_reachable=False)
+        # AND its preconditions if there are multiples:
+        if len(exploit_dict[binding[0]].preconditions) > 1:
+            and_node = 'and%i' % and_index
+            and_index+=1
+            adg.add_node(and_node, label='and', shape='oval',
+                         adg_type='operator', adg_data='and',
+                         adg_reachable=0)
+            adg.add_edge(and_node, attack_node)
+            src_node = and_node
+        # Preconditions:
+        for prec in exploit_dict[binding[0]].preconditions:
+            cond_node = get_bound_condition(prec, binding[1])
+            if type(cond_node) == list:
+                adg.add_node(cond_node[1], shape='none', adg_type='condition',
+                         adg_holds=nm.matches_fact(cond_node),
+                         adg_reachable=nm.matches_fact(cond_node))
+                cond_node = cond_node[0]
+            adg.add_node(cond_node, shape='none', adg_type='condition',
+                         adg_holds=nm.matches_fact(cond_node),
+                         adg_reachable=nm.matches_fact(cond_node))
+            adg.add_edge(cond_node, src_node)
+        # Postconditions:
+        for postc in exploit_dict[binding[0]].postconditions:
+            cond_node = get_bound_condition(postc, binding[1])
+            adg.add_node(cond_node, shape='none', adg_type='condition',
+                         adg_holds=nm.matches_fact(cond_node),
+                         adg_reachable=nm.matches_fact(cond_node))
+            adg.add_edge(attack_node, cond_node)
+    #adg = prune_dependency_graph(adg)
+    adg = prune_reachability(adg)
+    return adg
 
-        # For each valid attack in that state:
-        for attack in get_attacks(analysis_model, exploit_dict,
-                                  attack_bindings):
-            # Generate the successor state:
-            successor_state = get_successor_state(analysis_state, attack,
-                                                  exploit_dict)
-            # If it didn't do anything (self loop -- generated the same state
-            # it started from), skip it and go on to the next attack.
-            if successor_state == analysis_state:
+def node_fully_reachable(adg, node):
+    # TODO: AND only
+    reachable_cond_exp = adg.node[node]['adg_type'] != 'operator' and \
+                         adg.node[node]['adg_reachable']
+    reachable_operator = adg.node[node]['adg_type'] == 'operator' and \
+                         adg.node[node]['adg_reachable'] == adg.in_degree(node)
+    return reachable_cond_exp or reachable_operator
+
+def prune_reachability(adg, reached_nodes=None, initial=True):
+    # Note: will change adg, so it doesn't really need to return it.
+    # Initial setup for first time:
+    #if initial:
+    #    holding_nodes = [cond for cond in adg.nodes() if adg.node[cond]['adg_holds']]
+    if not reached_nodes:
+        reached_nodes = set()
+    
+    # Collect all the reachABLE nodes that have not yet been reachED (processed)
+    reachable_nodes = [node for node in adg.nodes() if
+                        node_fully_reachable(adg, node)
+                        and node not in reached_nodes]
+    print 'Searching %i nodes: %s' % (len(reachable_nodes), str(reachable_nodes))
+    marked_new = False
+    for node in reachable_nodes:
+        print 'Processing ' + str(node)
+        # Mark node as reached (processed)
+        reached_nodes.add(node)
+        # For every node dependent on this:
+        for dependent in adg.edge[node]:
+            print ' Processing dependent node ' + str(dependent)
+            # Ignore it if it's reachable (we've either already processed it
+            # or will do so later)
+            if node_fully_reachable(adg, dependent):
+                print '  Already fully reachable'
                 continue
-            
-            if DEBUG:
-                if type(attack) == tuple: # single attack
-                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
-                    (attack, exploit_dict[attack[0]], successor_state)
-                else: # multiple attack
-                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
-                    (attack, '(group)', successor_state)
-            
-            # If the successor state does not exist, add it to the list to
-            # be analyzed on the next iteration and the attack graph.
-            if hash(successor_state) in attack_graph:
-                pass
+            print '  Not yet fully reachable, marking new'
+            # Otherwise, we're marking something new!
+            marked_new = True
+            # Mark (or increment) reachability on the dependent node:
+            reachability_value = adg.node[dependent]['adg_reachable']
+            print '  Current reachability value ' + repr(reachability_value)
+            if adg.node[dependent]['adg_type'] == 'operator':
+                # increment
+                adg.node[dependent]['adg_reachable'] += 1
             else:
-                state_hash_lookup[successor_state] = successor_state
-                successor_states.append(successor_state)
-                attack_graph.add_node(hash(successor_state), label=next_label,
-                                      state=successor_state)
-                next_label+=1
-            if DEBUG: print hash(analysis_state) in attack_graph, hash(successor_state) in attack_graph, attack_graph.node[hash(successor_state)]
-            # Add the state transition to the attack graph
-            attack_graph.add_edge(hash(analysis_state), hash(successor_state),
-                                  label=get_pretty_attack(attack, exploit_dict))
-    # Recur (wouldn't tail call optimization be nice?)
-    return generate_attack_graph(successor_states, depth-1, exploit_dict,
-                                 attack_bindings, attack_graph, next_label)
+                # true
+                adg.node[dependent]['adg_reachable'] = True
+            print '  New reachability value ' + repr(reachability_value)
+    
+    if marked_new: # Recursive case
+        print 'Recurring'
+        return prune_reachability(adg, reached_nodes, False)
+    
+    # Otherwise, we're done marking reachable nodes, and it's time to
+    # eliminate all the unreachable ones:
+    unreachable_nodes = [node for node in adg.nodes() if
+                            not node_fully_reachable(adg, node)]
+    adg.remove_nodes_from(unreachable_nodes)
+    
+    # Make pretty    
+    start_conds = [cond for cond in adg.nodes() if
+                   adg.node[cond]['adg_type']=='condition' and
+                   adg.in_degree(cond) == 0]
+    holding_conds = [cond for cond in adg.nodes() if
+                     adg.node[cond]['adg_type']=='condition' and
+                     adg.node[cond]['adg_holds']]
+    for cond in holding_conds:
+        adg.node[cond]['color']='darkgreen'
+        adg.node[cond]['shape']='invhouse'
+        adg.node[cond]['style']='dotted'
+    for cond in start_conds:
+        adg.node[cond]['style']='solid'
+    
+    # Return (unnecessarily)
+    return adg
+
+def prune_dependency_graph(adg):
+    # Doesn't really work.
+    test_conds = [cond for cond in adg.nodes() \
+                  if adg.node[cond]['adg_type']=='condition'\
+                     and not adg.node[cond]['adg_holds'] \
+                     and adg.in_degree(cond) == 0]
+    if len(test_conds) == 0:
+        start_conds = [cond for cond in adg.nodes()\
+                       if adg.node[cond]['adg_type']=='condition'\
+                          and adg.in_degree(cond) == 0]
+        holding_conds = [cond for cond in adg.nodes()\
+                       if adg.node[cond]['adg_type']=='condition'\
+                          and adg.node[cond]['adg_holds']]
+        for cond in holding_conds:
+            adg.node[cond]['color']='darkgreen'
+            adg.node[cond]['shape']='invhouse'
+            adg.node[cond]['style']='dotted'
+        for cond in start_conds:
+            adg.node[cond]['style']='solid'
+        return adg
+    
+    del_nodes = []
+    
+    # For every condition that needs to be killed off:
+    for cond in test_conds:
+        del_nodes.append(cond)
+        print 'dealing with condition ' + str(cond)
+        # Find all its dependent OPERATORS or EXPLOITS:
+        for dependent_node in adg.edge[cond]:
+            print 'found dependent node ' + str(dependent_node)
+            dependent_node_dict = adg.node[dependent_node]
+            exploit = dependent_node
+            # If the dependent node is an AND operator:
+            if dependent_node_dict['adg_type'] == 'operator' and \
+              dependent_node_dict['adg_data'] == 'and':
+                print 'It is an AND, with the following dependents: ' + \
+                    str(adg.edge[dependent_node].keys())
+                # Follow the AND node's out edge to its exploit:
+                assert len(adg.edge[dependent_node].keys()) == 1
+                exploit = adg.edge[dependent_node].keys()[0]
+                
+                # Delete the AND node and all its edges
+                del_nodes.append(dependent_node)
+            
+            # If the only incident nodes to the exploit are in del_nodes:
+            if adg.in_degree(exploit) == \
+              len([node for node in del_nodes if exploit in adg.edge[node]]):
+                # delete exploit and all its edges
+                del_nodes.append(exploit)
+    print 'Deleting nodes: ' + str(del_nodes)
+    adg.remove_nodes_from(del_nodes)
+    print 'Recurring.'
+    return prune_dependency_graph(adg)
 
 def nsfactlist_from_nm(netmodel):
     """
@@ -828,14 +969,15 @@ def build_attack_graph(nm_file, xp_file, depth, state_graph):
     netmodel = ag_parser.networkmodel.parseFile(nm_file)
     exploits = ag_parser.exploits.parseFile(xp_file)
     exploit_dict = {}
+    initial_network_state = ns_from_nm(netmodel)
     for exploit in exploits:
         exploit_dict[exploit.name] = exploit
     if state_graph:
-        initial_network_state = ns_from_nm(netmodel)
-        return generate_attack_graph([initial_network_state,], depth, exploit_dict,
-                                     get_attack_bindings(netmodel, exploit_dict))
+        return generate_attack_graph([initial_network_state,], depth,
+            exploit_dict, get_attack_bindings(netmodel, exploit_dict))
     else:
-        raise NotImplementedError('Only state graphs are supported now.')
+        return generate_dependency_graph(exploit_dict,
+            get_attack_bindings(netmodel, exploit_dict), initial_network_state)
 
 def viz_ag(ag, file_prefix, outname, depth, write_states):
     print 'Visualizing.'
@@ -858,10 +1000,11 @@ def main(nm_file, xp_file, depth, state_graph=True):
     global ag
     ag = build_attack_graph(nm_file, xp_file, int(depth), state_graph)
     
-    nm_file_name = os.path.split(nm_file)[-1]
-    file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
-    outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
-    viz_ag(ag, file_prefix, outname, depth, True)
+    if state_graph:
+        nm_file_name = os.path.split(nm_file)[-1]
+        file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
+        outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
+        viz_ag(ag, file_prefix, outname, depth, True)
     
 
 if __name__ == '__main__':

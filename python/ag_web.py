@@ -1,15 +1,31 @@
 # Current?
 # /v0/attackgraphs/
-#  GET - get generated attack graphs
-#  POST - generate a new attack graph
-#         Parameters: name, depth
+#  GET - nothing useful
+#  POST - add new scenario (nm+xp):
+#         parameters:
+#           name: well-behaved name for the scenario
+#           xp: base64-encoded text of the exploit pattern definitions, AG-style
+#           nm: base64-encoded text of the network model dfns
+#         returns:
+#           the URL representing the scenario
+# /v0/attackgraphs/<name> (scenario URL)
+#  GET - nothing useful
+#  POST - generate new attack graph:
+#         parameters:
+#           depth: depth to generate to
+#         returns:
+#           URL to get the completed attack graph representation from
+# /v0/attackgraphs/<name>/<depth>
+#  GET - returns attack graph representation, formatted depending upon the
+#        MIME type you have chosen to accept (defaults to Graphviz DOT).
+#        Available formats:
+#           text/xml - GraphML
+#           text/vnd.graphviz - GraphViz DOT
+#           image/png - PNG rendering
+#           application/pdf - PDF rendering
+#          
 ##########################
 # TODO:
-# /v1
-#   /attackgraphs
-#                /<name>
-#                       /ag
-#                          /<depth>
 #                                  /states
 #                                         /<index>
 #                       /adg
@@ -18,8 +34,7 @@
 #                         /facts/
 #                       /xp
 #                          /<name>
-#   /attackdependencygraphs/
-
+##########################
 # futures is backported from 3.2, depends on 'pip install futures'
 from concurrent import futures
 import os
@@ -32,8 +47,6 @@ import networkx as nx
 
 import ag_generator
 import ag_parser
-
-#ag_generator.DEBUG = True
 
 # TODO: probably move this over to a Flask config setting if possible?
 MAX_WORKERS = 5
@@ -70,37 +83,46 @@ def get_ag(name, depth):
             ag.node[n][k]=str(ag.node[n][k])
     return ag
 
-def create_ag_files(name, nm, xp, depth):
+def create_ag_files(name, nm=False, xp=False, depth=False):
     # Returns errors, or None if none.
     parent_path = get_ag_path(name)
     if '\n' in parent_path:
         return 'name is too long'
     
     # Sanity check
-    assert not os.path.exists(parent_path)
+    if not depth:
+        assert not os.path.exists(parent_path)
     
-    # Decode and parse (to check for errors) nm/xp files:
-    nmstring = nm.decode('base64')
-    xpstring = xp.decode('base64')
-    try:
-        ag_parser.networkmodel.parseString(nmstring)
-    except Exception, e:
-        return 'Parse error in nm: %s' % (str(e),)
-    
-    try:
-        ag_parser.exploits.parseString(xpstring)
-    except Exception, e:
-        return 'Parse error in xp: %s' % (str(e),)
-    
-    # Now go ahead and create the files.
-    output_path = get_ag_path(name, depth)
-    nmfile = os.path.join(parent_path, 'netmodel.nm')
-    xpfile = os.path.join(parent_path, 'exploits.xp')
-    os.makedirs(output_path)
-    
-    with open(nmfile, 'w') as nmf, open(xpfile, 'w') as xpf:
-        nmf.write(nmstring)
-        xpf.write(xpstring)
+    if nm and xp:
+        # Decode and parse (to check for errors) nm/xp files:
+        nmstring = nm.decode('base64')
+        xpstring = xp.decode('base64')
+        try:
+            ag_parser.networkmodel.parseString(nmstring)
+        except Exception, e:
+            return 'Parse error in nm: %s' % (str(e),)
+        
+        try:
+            ag_parser.exploits.parseString(xpstring)
+        except Exception, e:
+            return 'Parse error in xp: %s' % (str(e),)
+        
+        # Now go ahead and create the files.    
+        os.mkdir(parent_path)
+        nmfile = os.path.join(parent_path, 'netmodel.nm')
+        xpfile = os.path.join(parent_path, 'exploits.xp')
+        with open(nmfile, 'w') as nmf, open(xpfile, 'w') as xpf:
+            nmf.write(nmstring)
+            xpf.write(xpstring)
+    else:
+        nmfile = os.path.join(parent_path, 'netmodel.nm')
+        xpfile = os.path.join(parent_path, 'exploits.xp')
+    if depth:
+        output_path = get_ag_path(name, depth)
+        # Sanity check
+        assert not os.path.exists(output_path)
+        os.makedirs(output_path)
+        
     
     return (nmfile, xpfile)
 
@@ -121,6 +143,7 @@ def write_pdf(name, depth, ag, filehandle):
         # Generate the PDF
         pd = nx.to_pydot(ag)
         pd.write_pdf(render_path)
+    # This might be stupid:
     with open(render_path, 'rb') as rendered:
         filehandle.write(rendered.read())
         filehandle.flush()
@@ -131,31 +154,26 @@ def write_png(name, depth, ag, filehandle):
         # Generate the PNG
         pd = nx.to_pydot(ag)
         pd.write_png(render_path)
+    # This might be stupid:
     with open(render_path, 'rb') as rendered:
         filehandle.write(rendered.read())
         filehandle.flush()
 
 @app.route('/v0/attackgraphs/', methods=['GET'])
-def helloworld():
+def read_attackgraphs():
     name = request.args.get('name', 'NoName')
     print name
     return "Hello world, %s" % (name,)
 
 @app.route('/v0/attackgraphs/', methods=['POST'])
-def generate(): # TODO: don't generate from here; generate elsewhere...
-    # TODO: Check for locked AGs that we're not working on, and regen them.
-    
+def create_nm(): 
     # Check that parameters exist.
-    for parm in ('nm', 'xp', 'depth', 'nm'):
+    for parm in ('nm', 'xp', 'name'):
         if parm not in request.args:
             return make_response('%s is required' % (parm,), 400)
     
     nm = request.args['nm']
     xp = request.args['xp']
-    try:
-        depth = int(request.args['depth'])
-    except ValueError, e:
-        return make_response('depth must be a number', 400)
     name = request.args['name']
 
     # AG exists on path:
@@ -163,7 +181,31 @@ def generate(): # TODO: don't generate from here; generate elsewhere...
         return make_response('Attack graph with name %s exists' % (name,), 409)
     
     # New AG:
-    ret = create_ag_files(name, nm, xp, depth)
+    ret = create_ag_files(name, nm, xp)
+    if type(ret) == str:
+        return make_response(ret, 400)
+    else:
+        return make_response(flask.url_for('generate', name=name), 201)
+    # TODO: consider waiting very briefly to see if we can return a 201 fast
+
+@app.route('/v0/attackgraphs/<name>/', methods=['POST'])
+def generate(name): # TODO: don't generate from here; generate elsewhere...
+    # TODO: Check for locked AGs that we're not working on, and regen them.
+    # Check that parameters exist.
+    if 'depth' not in request.args:
+        return make_response('depth is required', 400)
+    
+    try:
+        depth = int(request.args['depth'])
+    except ValueError, e:
+        return make_response('depth must be a number', 400)
+
+    # AG exists on path:
+    if ag_exists(name, depth):
+        return make_response('Attack graph exists', 409)
+    
+    # New AG:
+    ret = create_ag_files(name, depth=depth)
     if type(ret) == str:
         return make_response(ret, 400)
     else:

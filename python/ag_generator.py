@@ -10,6 +10,8 @@ exploit patterns.
 Author: George R Louthan IV
 """
 
+# TODO: ADGs: need to get rid of non-dependency dependencies
+
 import sys
 import os
 import ag_parser
@@ -764,8 +766,8 @@ def generate_dependency_graph(exploit_dict, attack_bindings, initial_state):
             cond_node = get_bound_condition(prec, binding[1])
             if type(cond_node) == list:
                 adg.add_node(cond_node[1], shape='none', adg_type='condition',
-                         adg_holds=nm.matches_fact(cond_node),
-                         adg_reachable=nm.matches_fact(cond_node))
+                         adg_holds=nm.matches_fact(cond_node[0]),
+                         adg_reachable=nm.matches_fact(cond_node[0]))
                 cond_node = cond_node[0]
             adg.add_node(cond_node, shape='none', adg_type='condition',
                          adg_holds=nm.matches_fact(cond_node),
@@ -774,6 +776,11 @@ def generate_dependency_graph(exploit_dict, attack_bindings, initial_state):
         # Postconditions:
         for postc in exploit_dict[binding[0]].postconditions:
             cond_node = get_bound_condition(postc, binding[1])
+            if type(cond_node) == list:
+                adg.add_node(cond_node[1], shape='none', adg_type='condition',
+                         adg_holds=nm.matches_fact(cond_node[0]),
+                         adg_reachable=nm.matches_fact(cond_node[0]))
+                cond_node = cond_node[0]
             adg.add_node(cond_node, shape='none', adg_type='condition',
                          adg_holds=nm.matches_fact(cond_node),
                          adg_reachable=nm.matches_fact(cond_node))

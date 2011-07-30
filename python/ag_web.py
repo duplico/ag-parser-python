@@ -40,6 +40,7 @@ from concurrent import futures
 import os
 import base64
 from StringIO import StringIO
+import shutil
 
 from flask import Flask, request, make_response
 import flask
@@ -67,7 +68,7 @@ def get_ag_path(name, depth=None, adg=False):
         elements.append('adg')
     return os.path.join(*elements)
 
-def get_ag_lockfile(name, depth, adg=False):
+def get_ag_lockfile(name, depth=None, adg=False):
     return os.path.join(get_ag_path(name, depth, adg), '.lock')
 
 def ag_exists(name, depth=None, adg=False):
@@ -128,7 +129,7 @@ def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
         assert not os.path.exists(output_path)
         os.makedirs(output_path)
     if adg:
-        output_path = get_ag_path(name, depth)
+        output_path = get_ag_path(name, depth, adg)
         # Sanity check
         assert not os.path.exists(output_path)
         os.makedirs(output_path)
@@ -202,19 +203,19 @@ def create_nm():
 def generate(name): # TODO: don't generate from here; generate elsewhere...
     # TODO: Check for locked AGs that we're not working on, and regen them.
     # Check that parameters exist.
-    if 'depth' not in request.args or 'adg' not in request.args:
+    if 'depth' not in request.args and 'adg' not in request.args:
         return make_response('depth or adg is required', 400)
     if 'depth' in request.args and 'adg' in request.args:
         return make_response('cannot have both depth and adg', 400)
+    adg = False
+    if 'adg' in request.args:
+        adg = True
+        depth = False
     if not adg: # State graph
         try:
             depth = int(request.args['depth'])
         except ValueError, e:
             return make_response('depth must be a number', 400)
-    
-    if 'adg' in request.args:
-        adg = True
-        depth = False
     
     # AG exists on path:
     if ag_exists(name, depth, adg):
@@ -239,27 +240,33 @@ def generate(name): # TODO: don't generate from here; generate elsewhere...
     else:
         return make_response(flask.url_for('read_adg', name=name), 202)
     
-    # ADG:
-    
-
-@app.route('/v0/attackgraphs/<name>/<int:depth>/', methods=['GET',])
-def read_ag(name, depth):
+# TODO: refactor to DRY
+@app.route('/v0/attackgraphs/<name>/adg/', methods=['GET',])
+def read_adg(name):
     """
     Defaults to dot format.
     """
     # Check for existence
+    print ' * getting adg for ' + name
     if not os.path.isdir(get_ag_path(name)):
         return make_response('unknown AG name %s' % (name,), 404)
-    if os.path.isfile(get_ag_lockfile(name, depth)):
-        if name not in running_futures or depth not in running_futures[name]:
-            os.rmdir(get_ag_path(get_ag_path(name))) # TODO: readd: , depth)))
+    print ' * scenario name found'
+    if os.path.isfile(get_ag_lockfile(name, adg=True)):
+        print ' * locked'
+        if name not in running_futures or 'adg' not in running_futures[name]:
+            print ' * not running'
+            shutil.rmtree(get_ag_path(name)) # TODO: readd: , depth, adg)))
             return make_response('internal error, resubmit generation request',
                                  500)
-        else:
-            return make_response('still processing', 122)
+        print 'what?'
+        print running_futures[name]['adg'].exception()
+        return make_response('still processing', 400)
+    
+    if not ag_exists(name, adg=True):
+        return make_response('ADG not generated', 404)
     
     # Exists, and we can return it.
-    ag = get_ag(name, depth)
+    ag = get_ag(name, depth=False, adg=True)
     
     # Defaults to dot
     out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
@@ -283,25 +290,26 @@ def read_ag(name, depth):
     resp.data = outstring.getvalue()
     return resp
 
-# TODO: refactor to DRY
-@app.route('/v0/attackgraphs/<name>/adg/', methods=['GET',])
-def read_adg(name):
+@app.route('/v0/attackgraphs/<name>/ag/<int:depth>/', methods=['GET',])
+def read_ag(name, depth):
     """
     Defaults to dot format.
     """
     # Check for existence
     if not os.path.isdir(get_ag_path(name)):
         return make_response('unknown AG name %s' % (name,), 404)
-    if os.path.isfile(get_ag_lockfile(name, adg=True)):
-        if name not in running_futures or 'adg' not in running_futures[name]:
-            os.rmdir(get_ag_path(get_ag_path(name))) # TODO: readd: , depth, adg)))
+    if os.path.isfile(get_ag_lockfile(name, depth)):
+        if name not in running_futures or depth not in running_futures[name]:
+            shutil.rmtree(get_ag_path(name)) # TODO: readd: , depth)))
             return make_response('internal error, resubmit generation request',
                                  500)
         else:
             return make_response('still processing', 122)
+    if not ag_exists(name, depth):
+        return make_response('ungenerated AG depth', 404)
     
     # Exists, and we can return it.
-    ag = get_ag(name, depth=False, adg=True)
+    ag = get_ag(name, depth)
     
     # Defaults to dot
     out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),

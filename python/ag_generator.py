@@ -153,8 +153,8 @@ class NetworkModel(object):
                         else:
                             ret = False
                             break
-                        if ret:
-                            return cpe # Return the matched platform
+                    if ret:
+                        return cpe # Return the matched platform
             return False
         
         def get_topology(self, dest, name):

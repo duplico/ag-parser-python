@@ -1021,12 +1021,11 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action="store_true", dest="debug", default=False)
     parser.add_argument('-nm', action="store", dest="nm", required=True)
     parser.add_argument('-xp', action="store", dest="xp", required=True)
-    parser.add_argument('-d', action="store", type=int, dest="depth", required=True)
     
     graph_type = parser.add_mutually_exclusive_group(required=True)
     graph_type.add_argument('--dependency-graph', dest="dep", action='store_true')
-    graph_type.add_argument('--state-graph', dest="state", action='store_true')
+    graph_type.add_argument('--state-graph', action="store", type=int, dest="depth", default=0)
     
     args= parser.parse_args()
     DEBUG = args.debug
-    main(args.nm, args.xp, args.depth, args.state)
+    main(args.nm, args.xp, args.depth, not args.dep)

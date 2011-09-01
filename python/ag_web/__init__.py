@@ -22,6 +22,7 @@
 # /v0/attackgraphs/<name>/<depth>
 #  GET - returns attack graph representation, formatted depending upon the
 #        MIME type you have chosen to accept (defaults to Graphviz DOT).
+#        Also, "adg" is a valid depth.
 #        Available formats:
 #           text/xml - GraphML
 #           text/vnd.graphviz - GraphViz DOT
@@ -146,7 +147,7 @@ def create_scenario_files(name, nm, xp):
         return 'Parse error in nm: %s' % (str(e),)
     
     # Now go ahead and create the files.    
-    os.mkdir(parent_path)
+        os.makedirs(parent_path)
     paths = get_scenario_paths(name)
     with open(paths['nm'], 'w') as nmf, open(paths['xp'], 'w') as xpf:
         nmf.write(nmstring)
@@ -407,4 +408,4 @@ def api_read_ag(name, depth):
     return resp
 
 if __name__ == '__main__':    
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

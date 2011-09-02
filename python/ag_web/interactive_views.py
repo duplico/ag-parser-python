@@ -12,15 +12,66 @@ from ag_web.util import *
 @app.route('/interactive/', methods=['GET',])
 def web_landing():
     """
-    Defaults to dot format.
+    Landing page (scenario listing).
     """
     ags = get_ag_overview()
     return render_template('landing.html', ag_table=ags)
 
+@app.route('/interactive/attackgraphs/<name>/', methods=['GET',])
+def web_scenario_detail(name):
+    """
+    Landing page (scenario listing).
+    """
+    ag = get_ag_overview()[name]
+    return render_template('scenario.html', name=name, ag=ag)
+
+@app.route('/interactive/attackgraphs/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
+def web_task_download(name, graph_type, fn, ext):
+    """
+    Attack graph download.
+    """
+    # filename is formatted {'name_adg.EXT' | 'name_ag_DEPTH.EXT'}
+    # Ensure filename is well-formed:
+    assert name in get_ag_names()
+    assert fn.split('_')[0] == name
+    assert graph_type in ('ag', 'adg')
+    assert fn.split('_')[1] == graph_type
+    assert ext.lower() in ('dot', 'pdf', 'xml', 'png')
+    
+    # Ensure that the request attack graph has been generated:
+    adg = graph_type == 'adg'
+    depth = False
+    if not adg: # Assert the ASG state depth is DONE:
+        depth = int(fn.split('_')[-1])
+        assert depth in get_ag_tasks(name)[0]
+    if adg: # Assert ADG is DONE:
+        assert get_ag_tasks(name)[2] == 2
+    
+    # Get the file:
+    
+    out_types = {'dot' : 'text/vnd.graphviz',
+                 'xml' : 'text/xml', # UTF8=>text
+                 'pdf' : 'application/pdf',
+                 'png' : 'image/png',
+        }
+    mime = out_types[ext.lower()]
+    ret = get_render(name, depth, mime)
+    if type(ret) == tuple: # Error response
+        # TODO
+        return make_response(*ret)
+    
+    # If no error, it's a StringIO object (file-like string)
+    outstring = ret
+    resp = make_response(outstring.getvalue(), 200) # Response
+    resp.mimetype=mime # Correct the MIME according to out_tuple
+    resp.implicit_sequence_conversion=False
+    resp.data = outstring.getvalue()
+    return resp
+    
 @app.route('/interactive/attackgraphs/', methods=['GET', 'POST'])
 def web_create_scenario():
     """
-    Defaults to dot format.
+    Scenario creation form page.
     """
     form = forms.ScenarioForm(request.form)
     if form.validate_on_submit():
@@ -36,3 +87,26 @@ def web_create_scenario():
             # I/O error maybe?
             assert False
     return render_template('scenario_form.html', form=form)
+
+@app.route('/interactive/attackgraphs/<name>/add/', methods=['GET', 'POST'])
+def web_create_generation_task(name):
+    """
+    Generation task creation form page.
+    """
+    form = forms.GenerationTaskForm(request.form)
+    # TODO: better error handling.
+    if form.validate_on_submit():
+        # Create the generation task:
+        if form.depth.data: 
+            depth = int(form.depth.data)
+        else:
+            depth = False
+        adg = form.graph_type.data == 'adg'        
+        ret = new_generation_task(name, depth=depth, adg=adg)
+        
+        if not ret:
+            flash('Submitted!')
+            return redirect(url_for('web_landing'))
+        else:
+            return make_response(*ret)
+    return render_template('task_form.html', form=form, name=name)

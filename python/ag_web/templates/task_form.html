@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% macro render_field(field) %}
+  <dt>{{ field.label }}</dt>
+  <dd>
+  {% if field.errors %}
+    {% for error in field.errors %}<div class="error">{{ error }}</div>{% endfor %}
+  {% endif %}
+  {{ field(**kwargs)|safe }}
+  </dd>
+{% endmacro %}
+
+{% block breadcrumb %}{{ super() }} : {{ name }} : Generation Task Creation{% endblock %}
+
+{% block ltitle %}Instructions{% endblock %}
+
+{% block left %}
+<p>
+Make generation tasks here.
+</p>
+{% endblock %}
+
+{% block rtitle %}Generation Task Specification{% endblock %}
+
+{% block right %}
+<form method="post" action="">
+  {{ form.csrf }}
+  <dl>
+  {{ render_field(form.type) }}
+  {{ render_field(form.depth) }}
+  </dl>
+  <input type="submit" value="Submit">
+</form>
+{% endblock %}

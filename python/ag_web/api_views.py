@@ -66,8 +66,8 @@ def api_base_read(name, depth=False):
                  ('*', '*') : 'text/vnd.graphviz',
                  ('text', '*') : 'text/vnd.graphviz',
                  ('text', 'xml') : 'text/xml', # UTF8=>text
-                 ('application', 'pdf') : 'text/application/pdf',
-                 ('image', 'png') : 'text/image/png',
+                 ('application', 'pdf') : 'application/pdf',
+                 ('image', 'png') : 'image/png',
         }
     # Check what format the client requested:
     accept_mime = tuple(flask.request.headers['Accept'].split())

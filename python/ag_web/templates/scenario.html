@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}{{ super() }} : {{ name }}{% endblock %}
+{% block ltitle %}Instructions {% endblock %}
+
+{% block left %}
+<p class="append-bottom">
+Attack graph generation with this tool has two major concepts, which correspond
+to the two steps required to generate an attack graph.
+</p>
+{% endblock %}
+
+{% block rtitle %}Generation Tasks{% endblock %}
+
+{% block right %}
+<div id="add" class="append-bottom">
+  <a href="{{ url_for('web_create_generation_task', name=name) }}">
+  Add new generation task</a>
+</div>
+<table>
+<th>Type</th><th>Depth</th><th>Actions</th>
+<th>View / Download</th><th>Status</th>
+    {% if ag.2 == 1 %}
+        <tr>
+          <td>Dependency Graph</td>
+          <td>-</td>
+          <td>
+          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" /> | Delete</td>
+          <td>-</td>
+          <td>In Progress</td>
+        </tr>
+    {% elif ag.2 == 2 %}
+        <tr>
+          <td>Dependency Graph</td>
+          <td>-</td>
+          <td>
+          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" />
+          <img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" />
+          </td>
+          <td>
+          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='pdf') }}">PDF</a> | 
+          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='png') }}">PNG</a> |
+          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='dot') }}">DOT</a> |
+          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='xml') }}">GraphML</a></td>
+          <td>Completed</td>
+        </tr>
+    {% endif %}
+    {% if ag.0 %}
+      {% for depth in ag.0 %}
+        <tr>
+          <td>State Graph</td>
+          <td>{{ depth }}</td>
+          <td>
+          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" />
+          <img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" />
+          </td>
+          <td>
+          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='pdf') }}">PDF</a> | 
+          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='png') }}">PNG</a> |
+          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='dot') }}">DOT</a> |
+          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='xml') }}">GraphML</a></td>
+          <td>Completed</td>
+        </tr>
+      {% endfor %}
+    {% endif %}
+    {% if ag.1 %}
+      {% for depth in ag.1 %}
+        <tr>
+          <td>State Graph</td>
+          <td>{{ depth }}</td>
+          <td>
+          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" />
+          <img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" />
+          </td>
+          <td>-</td>
+          <td>In Progress</td>
+        </tr>
+      {% endfor %}
+    {% endif %}
+</table>
+{% endblock %}

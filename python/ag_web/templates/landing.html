@@ -5,7 +5,7 @@
 
 {% block left %}
 <p class="append-bottom">
-Attack graph generation with webRAVEN has two major concepts, which correspond
+Attack graph generation with this tool has two major concepts, which correspond
 to the two steps required to generate an attack graph.
 </p>
 <dl>
@@ -30,18 +30,26 @@ new scenario."
 
 {% block right %}
 <div id="add" class="append-bottom">
-  <a href="{{ url_for('web_create_scenario') }}">Add new scenario</a>
+  <a href="{{ url_for('web_create_scenario') }}">
+  Add new scenario</a>
 </div>
 <table>
-<th>Name</th><th>Completed Attack State Graphs</th>
+<th>Name</th><th>Actions</th>
+<th>Completed Attack State Graphs</th>
 <th>Attack State Graphs in Progress</th><th>Attack Dependency Graph</th>
 {% for name in ag_table %}
   <tr>
     <td>{{ name }}</td>
     <td>
+    <a href="{{ url_for('web_create_generation_task', name=name) }}">
+    <img alt="Add generation task" height="20px" src="{{ url_for('static', filename='image/plus_green.png') }}" />
+    </a>
+    <img alt="Delete scenario" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" />
+    </td>
+    <td>
     {% if ag_table[name].0 %}
       {% for depth in ag_table[name].0 %}
-        depth
+        {{ depth }}
       {% endfor %}
     {% else %}
       -
@@ -50,7 +58,7 @@ new scenario."
     <td>
     {% if ag_table[name].1 %}
       {% for depth in ag_table[name].1 %}
-        depth
+        {{ depth }}
       {% endfor %}
     {% else %}
       -
@@ -67,7 +75,4 @@ new scenario."
   </tr>
 {% endfor %}
 </table>
-<div id="add2" class="prepend-top">
-  <a href="{{ url_for('web_create_scenario') }}">Add new scenario</a>
-</div>
 {% endblock %}

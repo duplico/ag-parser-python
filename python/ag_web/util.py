@@ -170,12 +170,13 @@ def new_generation_task(name, depth=False, adg=False):
         # TODO: Check for locked AGs that we're not working on, and regen them.
         return ('Task already exists.', 409)
 
-    ret = create_ag_files(name, depth=depth, adg=adg)
+    ret = create_task_files(name, depth=depth, adg=adg)
     if ret: # Error:
         return (ret, 400)
     else: # Create new AG/ADG task:
-        task = executor.submit(make_attack_graph, name, ret['nm'], ret['xp'],
-                               depth, adg)
+        paths = get_scenario_paths(name)
+        task = executor.submit(make_attack_graph, name, paths['nm'], 
+                               paths['xp'], depth, adg)
         if name not in running_futures:
             running_futures[name] = dict()
         if adg:
@@ -230,6 +231,8 @@ def write_png(name, depth, ag, filehandle):
     render_path = os.path.join(get_ag_path(name, depth), 'ag.png')
     if not os.path.isfile(render_path):
         # Generate the PNG
+        print nx
+        print nx.to_pydot
         pd = nx.to_pydot(ag)
         pd.write_png(render_path)
     # This might be stupid:
@@ -277,5 +280,5 @@ def get_render(name,depth=False, accept_type='text/vnd.graphviz'):
     accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
     out_fun = out_types[accept_type] # output function
     outstring = StringIO() # Dummy up a file-like string
-    out_fun[0](ag, outstring) # Call our output function on it
+    out_fun(ag, outstring) # Call our output function on it
     return outstring

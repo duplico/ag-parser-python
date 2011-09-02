@@ -1,7 +1,5 @@
 ﻿{% extends 'base.html' %}
 
-{% block breadcrumb %}{{ super() }} : Scenario Creation{% endblock %}
-
 {% macro render_field(field) %}
   <dt>{{ field.label }}</dt>
   <dd>
@@ -12,9 +10,11 @@
   </dd>
 {% endmacro %}
 
-{% block body %}
-<div class="span-8 colborder">
-<h2 class="caps">Instructions</h2> <hr />
+{% block breadcrumb %}{{ super() }} : Scenario Creation{% endblock %}
+
+{% block ltitle %}Instructions{% endblock %}
+
+{% block left %}
 <p>
 This form is for the creation of "scenarios," which are named collections of
 exploit patterns and initial network states. After creating a scenario, you
@@ -31,10 +31,11 @@ Scenario names must be unique (and they are case sensitive), and the parser will
 check for compile-time errors
 in the network model and exploit pattern definitions when this form is submitted.
 </p>
-</div>
+{% endblock %}
 
-<div class="span-15 last">
-<h2 class="caps">Scenario Description Entry</h2> <hr />
+{% block rtitle %}Scenario Description Entry{% endblock %}
+
+{% block right %}
 <form method="post" action="">
   {{ form.csrf }}
   <dl>
@@ -44,5 +45,4 @@ in the network model and exploit pattern definitions when this form is submitted
   </dl>
   <input type="submit" value="Submit">
 </form>
-</div>
 {% endblock %}

@@ -1,4 +1,8 @@
 # Current?
+# /interactive/ - landing
+# /interactive/name
+# /interactive/name/depth
+#
 # /v0/attackgraphs/
 #  GET - nothing useful
 #  POST - add new scenario (nm+xp):
@@ -18,6 +22,7 @@
 # /v0/attackgraphs/<name>/<depth>
 #  GET - returns attack graph representation, formatted depending upon the
 #        MIME type you have chosen to accept (defaults to Graphviz DOT).
+#        Also, "adg" is a valid depth.
 #        Available formats:
 #           text/xml - GraphML
 #           text/vnd.graphviz - GraphViz DOT
@@ -41,6 +46,7 @@ import os
 import base64
 from StringIO import StringIO
 import shutil
+import json
 
 from flask import Flask, request, make_response
 import flask
@@ -57,6 +63,11 @@ executor = futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 app = Flask(__name__)
 
 running_futures = dict()
+
+def get_ag_names():
+    # TODO: handle broken stuff
+    return [base64.urlsafe_b64decode(name) for name in
+            os.listdir(AG_DATA_PATH)]
 
 def get_ag_path(name, depth=None, adg=False):
     assert not (depth and adg)
@@ -88,7 +99,6 @@ def get_ag(name, depth=None, adg=False):
     return ag
 
 def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
-    # Returns errors, or None if none.
     assert not (depth and adg)
 
     parent_path = get_ag_path(name)
@@ -97,7 +107,9 @@ def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
     
     # Sanity check
     if not depth and not adg:
-        assert not os.path.exists(parent_path)
+        # Then we're just trying to GET the paths
+        pass
+    #    assert not os.path.exists(parent_path)
     
     if nm and xp:
         # Decode and parse (to check for errors) nm/xp files:
@@ -114,7 +126,7 @@ def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
             return 'Parse error in xp: %s' % (str(e),)
         
         # Now go ahead and create the files.    
-        os.mkdir(parent_path)
+        os.makedirs(parent_path)
         nmfile = os.path.join(parent_path, 'netmodel.nm')
         xpfile = os.path.join(parent_path, 'exploits.xp')
         with open(nmfile, 'w') as nmf, open(xpfile, 'w') as xpf:
@@ -134,8 +146,14 @@ def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
         assert not os.path.exists(output_path)
         os.makedirs(output_path)
         
-    
     return (nmfile, xpfile)
+
+def get_ag_definition(name):
+    files = create_ag_files(name)
+    with open(files[0]) as nm, open(files[1]) as xp:
+        nm_def = nm.read()
+        xp_def = xp.read()
+    return (nm_def, xp_def)
 
 def make_attack_graph(name, nmfile, xpfile, depth, adg):
     parent_path = get_ag_path(name)
@@ -172,9 +190,12 @@ def write_png(name, depth, ag, filehandle):
 
 @app.route('/v0/attackgraphs/', methods=['GET'])
 def read_attackgraphs():
-    name = request.args.get('name', 'NoName')
-    print name
-    return "Hello world, %s" % (name,)
+    ags = get_ag_names()
+    resp = flask.jsonify(attack_graphs=ags)
+    #resp = make_response(json.dumps(ags), 200) # Response
+    resp.mimetype='text/plain'
+    #resp.data = outstring.getvalue()
+    return resp
 
 @app.route('/v0/attackgraphs/', methods=['POST'])
 def create_nm(): 
@@ -198,6 +219,13 @@ def create_nm():
     else:
         return make_response(flask.url_for('generate', name=name), 201)
     # TODO: consider waiting very briefly to see if we can return a 201 fast
+
+@app.route('/v0/attackgraphs/<name>/', methods=['GET'])
+def read_attackgraph(name):
+    if not ag_exists(name):
+        return make_response('Unknown attack graph scenario', 404)
+    print get_ag_definition(name)
+    return make_response('Exists', 200)
 
 @app.route('/v0/attackgraphs/<name>/', methods=['POST'])
 def generate(name): # TODO: don't generate from here; generate elsewhere...
@@ -334,4 +362,4 @@ def read_ag(name, depth):
     return resp
 
 if __name__ == '__main__':    
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

@@ -44,9 +44,9 @@
 from concurrent import futures
 import os
 import base64
+import operator.xor
 from StringIO import StringIO
 import shutil
-import json
 
 from flask import Flask, request, make_response
 import flask
@@ -64,14 +64,38 @@ app = Flask(__name__)
 
 running_futures = dict()
 
+### Utility functions #########################################################
+
+# Dealing with names:
+
+def path_encode_name(name):
+    """
+    Returns the mapping from a plaintext name to a path-safe name.
+    """
+    return base64.urlsafe_b64encode(name)
+
+def path_decode_name(name):
+    """
+    Returns the mapping from a path-safe name to a plaintext name.
+    """
+    return base64.urlsafe_b64decode(name)
+    
 def get_ag_names():
+    """
+    Returns the name of every stored scenario.
+    """
     # TODO: handle broken stuff
-    return [base64.urlsafe_b64decode(name) for name in
+    return [path_decode_name(name) for name in
             os.listdir(AG_DATA_PATH)]
 
+# Generic task+scenario path/queries:
+
 def get_ag_path(name, depth=None, adg=False):
+    """
+    Returns the path to either the parent directory of the AG or the AG itself.
+    """
     assert not (depth and adg)
-    ag_string = base64.urlsafe_b64encode(name)
+    ag_string = path_encode_name(name)
     elements = [AG_DATA_PATH, ag_string]
     if depth:
         elements.append('out_%i' % depth)
@@ -80,61 +104,72 @@ def get_ag_path(name, depth=None, adg=False):
     return os.path.join(*elements)
 
 def get_ag_lockfile(name, depth=None, adg=False):
+    """
+    Returns the path to the lockfile for a generation task.
+    """
+    assert operator.xor(depth, adg)
     return os.path.join(get_ag_path(name, depth, adg), '.lock')
-
+    
 def ag_exists(name, depth=None, adg=False):
-    return os.path.isdir(get_ag_path(name, depth, adg))
-
-def get_ag(name, depth=None, adg=False):
-    assert(ag_exists(name, depth, adg))
-    # TODO: if name in running_futures, etc etc etc...
-    ag = nx.read_gpickle(os.path.join(get_ag_path(name, depth, adg), 'ag.pickle'))
-    
-    # Some kludges to get it to work with GraphML. Luckily, as the API
-    # matures this should be less necessary.
-    ag.graph = {}
-    for n in ag.node:
-        for k in ag.node[n]:
-            ag.node[n][k]=str(ag.node[n][k])
-    return ag
-
-def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
+    """
+    Returns True if the generation task or scenario directory exists.
+    """
     assert not (depth and adg)
+    return os.path.isdir(get_ag_path(name, depth, adg))
+    
+# Scenario management:
 
+def get_scenario_paths(name):
+    """
+    Returns a 2-dictionary of {"xp": xpfilepath, "nm": nmfilepath}.
+    """
     parent_path = get_ag_path(name)
-    if '\n' in parent_path:
-        return 'name is too long'
+    filenames = ('netmodel.nm', 'exploits.xp')
+    pathify = lambda filename : os.path.join(parent_path, filename)
+    paths = map(pathify, filenames)
+    # Return the dictionary:
+    return dict(zip(('nm','xp'), paths))
     
-    # Sanity check
-    if not depth and not adg:
-        # Then we're just trying to GET the paths
-        pass
-    #    assert not os.path.exists(parent_path)
+def create_scenario_files(name, nm, xp):
+    """
+    Returns False on successful scenario creation and error string otherwise.
+    """
+    if len(name)>100:
+        return 'Scenario name too long.'
     
-    if nm and xp:
-        # Decode and parse (to check for errors) nm/xp files:
-        nmstring = nm.decode('base64')
-        xpstring = xp.decode('base64')
-        try:
-            ag_parser.networkmodel.parseString(nmstring)
-        except Exception, e:
-            return 'Parse error in nm: %s' % (str(e),)
-        
-        try:
-            ag_parser.exploits.parseString(xpstring)
-        except Exception, e:
-            return 'Parse error in xp: %s' % (str(e),)
-        
-        # Now go ahead and create the files.    
+    # Decode and parse (to check for errors) nm/xp files:
+    nmstring = nm
+    xpstring = xp
+    try:
+        ag_parser.networkmodel.parseString(nmstring)
+        ag_parser.exploits.parseString(xpstring)
+    except Exception, e:
+        return 'Parse error in nm: %s' % (str(e),)
+    
+    # Now go ahead and create the files.    
         os.makedirs(parent_path)
-        nmfile = os.path.join(parent_path, 'netmodel.nm')
-        xpfile = os.path.join(parent_path, 'exploits.xp')
-        with open(nmfile, 'w') as nmf, open(xpfile, 'w') as xpf:
-            nmf.write(nmstring)
-            xpf.write(xpstring)
-    else:
-        nmfile = os.path.join(parent_path, 'netmodel.nm')
-        xpfile = os.path.join(parent_path, 'exploits.xp')
+    paths = get_scenario_paths(name)
+    with open(paths['nm'], 'w') as nmf, open(paths['xp'], 'w') as xpf:
+        nmf.write(nmstring)
+        xpf.write(xpstring)
+    return False
+
+def get_ag_definition(name):
+    files = get_scenario_paths(name)
+    with open(files['nm']) as nm, open(files['xp']) as xp:
+        nm_def = nm.read()
+        xp_def = xp.read()
+    return (nm_def, xp_def)
+    
+# Task management:
+
+def create_task_files(name, depth=False, adg=False):
+    """
+    Returns False on successful task creation and error string otherwise.
+    """
+    # Sanity check: need at least one of depth, adg:
+    assert operator.xor(depth, adg)
+    
     if depth:
         output_path = get_ag_path(name, depth)
         # Sanity check
@@ -145,15 +180,52 @@ def create_ag_files(name, nm=False, xp=False, depth=False, adg=False):
         # Sanity check
         assert not os.path.exists(output_path)
         os.makedirs(output_path)
-        
-    return (nmfile, xpfile)
+    return False
 
-def get_ag_definition(name):
-    files = create_ag_files(name)
-    with open(files[0]) as nm, open(files[1]) as xp:
-        nm_def = nm.read()
-        xp_def = xp.read()
-    return (nm_def, xp_def)
+# Attack graph generation/rendering:
+
+def new_generation_task(name, depth=False, adg=False):
+    # Check that parameters exist.
+    if not operator.xor(depth, adg):
+        return ('must have only one of (depth, adg)', 400)
+    # AG exists on path:
+    if ag_exists(name, depth, adg):
+        # TODO: Check for locked AGs that we're not working on, and regen them.
+        return ('Task already exists.', 409)
+
+    ret = create_ag_files(name, depth=depth, adg=adg)
+    if ret: # Error:
+        return (ret, 400)
+    else: # Create new AG/ADG task:
+        task = executor.submit(make_attack_graph, name, ret['nm'], ret['xp'],
+                               depth, adg)
+        if name not in running_futures:
+            running_futures[name] = dict()
+        if adg:
+            running_futures[name]['adg'] = task
+        else:
+            running_futures[name][depth] = task
+        # print running_futures
+        # print task.running()
+    
+    return False # Success, nothing to report.
+    
+def get_ag(name, depth=None, adg=False):
+    """
+    Returns the NetworkX graph object for the specified attack graph.
+    """
+    assert operator.xor(depth, adg)
+    assert ag_exists(name, depth, adg)
+    # TODO: if name in running_futures, etc etc etc...
+    ag = nx.read_gpickle(os.path.join(get_ag_path(name, depth, adg), 'ag.pickle'))
+    
+    # Some kludges to get it to work with GraphML. Luckily, as the API
+    # matures this should be less necessary.
+    ag.graph = {}
+    for n in ag.node:
+        for k in ag.node[n]:
+            ag.node[n][k]=str(ag.node[n][k])
+    return ag
 
 def make_attack_graph(name, nmfile, xpfile, depth, adg):
     parent_path = get_ag_path(name)
@@ -187,25 +259,23 @@ def write_png(name, depth, ag, filehandle):
     with open(render_path, 'rb') as rendered:
         filehandle.write(rendered.read())
         filehandle.flush()
-
+        
+####### Web service API views #################################################
 @app.route('/v0/attackgraphs/', methods=['GET'])
-def read_attackgraphs():
+def api_read_scenarios():
     ags = get_ag_names()
     resp = flask.jsonify(attack_graphs=ags)
-    #resp = make_response(json.dumps(ags), 200) # Response
-    resp.mimetype='text/plain'
-    #resp.data = outstring.getvalue()
     return resp
 
 @app.route('/v0/attackgraphs/', methods=['POST'])
-def create_nm(): 
+def api_create_scenario(): 
     # Check that parameters exist.
     for parm in ('nm', 'xp', 'name'):
         if parm not in request.args:
             return make_response('%s is required' % (parm,), 400)
     
-    nm = request.args['nm']
-    xp = request.args['xp']
+    nm = request.args['nm'].decode('base64')
+    xp = request.args['xp'].decode('base64')
     name = request.args['name']
 
     # AG exists on path:
@@ -213,64 +283,40 @@ def create_nm():
         return make_response('Attack graph with name %s exists' % (name,), 409)
     
     # New AG:
-    ret = create_ag_files(name, nm, xp)
-    if type(ret) == str:
+    ret = create_scenario_files(name, nm, xp)
+    if ret:
         return make_response(ret, 400)
     else:
-        return make_response(flask.url_for('generate', name=name), 201)
-    # TODO: consider waiting very briefly to see if we can return a 201 fast
+        return make_response(flask.url_for('api_read_scenario', name=name), 201)
 
 @app.route('/v0/attackgraphs/<name>/', methods=['GET'])
-def read_attackgraph(name):
+def api_read_scenario(name):
     if not ag_exists(name):
         return make_response('Unknown attack graph scenario', 404)
-    print get_ag_definition(name)
     return make_response('Exists', 200)
-
+    
 @app.route('/v0/attackgraphs/<name>/', methods=['POST'])
-def generate(name): # TODO: don't generate from here; generate elsewhere...
-    # TODO: Check for locked AGs that we're not working on, and regen them.
-    # Check that parameters exist.
-    if 'depth' not in request.args and 'adg' not in request.args:
-        return make_response('depth or adg is required', 400)
-    if 'depth' in request.args and 'adg' in request.args:
-        return make_response('cannot have both depth and adg', 400)
-    adg = False
-    if 'adg' in request.args:
-        adg = True
-        depth = False
-    if not adg: # State graph
-        try:
-            depth = int(request.args['depth'])
-        except ValueError, e:
-            return make_response('depth must be a number', 400)
+def api_create_generation_task(name):
+    adg = 'adg' in request.args
+    try:
+        depth = int(request.args['depth'])
+    except ValueError, e:
+        return make_response('depth must be a number', 400)
     
-    # AG exists on path:
-    if ag_exists(name, depth, adg):
-        return make_response('Attack graph exists', 409)
+    ret = new_generation_task(name, depth=depth, adg=adg)
+    if ret: # Format is (message, code), so we can unwrap into args like so:
+        return make_response(*ret)
     
-    # New AG:
-    ret = create_ag_files(name, depth=depth, adg=adg)
-    if type(ret) == str:
-        return make_response(ret, 400)
+    # We succeeded, so return the proper URL. We also did all the necessary
+    # validation for adg vs. depth above, so this is valid WOLOG:
+    if adg:
+        return (flask.url_for('api_read_adg', name=name), 202)
     else:
-        task = executor.submit(make_attack_graph, name, ret[0], ret[1], depth, adg)
-        if name not in running_futures:
-            running_futures[name] = dict()
-        if adg:
-            running_futures[name]['adg'] = task
-        else:
-            running_futures[name][depth] = task
-        print running_futures
-        print task.running()
-    if not adg:
-        return make_response(flask.url_for('read_ag', name=name, depth=depth), 202)
-    else:
-        return make_response(flask.url_for('read_adg', name=name), 202)
+        return (flask.url_for('api_read_ag', name=name, depth=depth), 202)
     
 # TODO: refactor to DRY
 @app.route('/v0/attackgraphs/<name>/adg/', methods=['GET',])
-def read_adg(name):
+def api_read_adg(name):
     """
     Defaults to dot format.
     """
@@ -319,7 +365,7 @@ def read_adg(name):
     return resp
 
 @app.route('/v0/attackgraphs/<name>/ag/<int:depth>/', methods=['GET',])
-def read_ag(name, depth):
+def api_read_ag(name, depth):
     """
     Defaults to dot format.
     """

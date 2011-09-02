@@ -1,0 +1,22 @@
+<!doctype html>
+<title>Attack Graph Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/screen.css') }}" type="text/css" media="screen, projection">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/print.css') }}" type="text/css" media="print"> 
+  <!--[if lt IE 8]>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/ie.css') }}" type="text/css" media="screen, projection">
+  <![endif]-->
+<link rel=stylesheet type=text/css href="">
+<div class=page>
+  <h1>Flaskr</h1>
+  <div class=metanav>
+  {% if not session.logged_in %}
+    <a href="{{ url_for('login') }}">log in</a>
+  {% else %}
+    <a href="{{ url_for('logout') }}">log out</a>
+  {% endif %}
+  </div>
+  {% for message in get_flashed_messages() %}
+    <div class=flash>{{ message }}</div>
+  {% endfor %}
+  {% block body %}{% endblock %}
+</div>

@@ -153,8 +153,8 @@ class NetworkModel(object):
                         else:
                             ret = False
                             break
-                        if ret:
-                            return cpe # Return the matched platform
+                    if ret:
+                        return cpe # Return the matched platform
             return False
         
         def get_topology(self, dest, name):
@@ -377,7 +377,6 @@ class NetworkModel(object):
         return RELOPS[op](my_value, value)
     
     def matches_fact(self, fact): # checks if the netmodel matches a fact tuple
-        print 'matches_fact ' + str(fact)
         if fact[0] == 'quality':
             return self.matches_quality(*fact[1:])
         if fact[0] == 'topology':
@@ -797,11 +796,9 @@ def node_fully_reachable(adg, node):
                          adg.node[node]['adg_reachable'] == adg.in_degree(node)
     return reachable_cond_exp or reachable_operator
 
-def prune_reachability(adg, reached_nodes=None, initial=True):
+def prune_reachability(adg, reached_nodes=None):
     # Note: will change adg, so it doesn't really need to return it.
     # Initial setup for first time:
-    #if initial:
-    #    holding_nodes = [cond for cond in adg.nodes() if adg.node[cond]['adg_holds']]
     if not reached_nodes:
         reached_nodes = set()
     
@@ -816,6 +813,7 @@ def prune_reachability(adg, reached_nodes=None, initial=True):
         # Mark node as reached (processed)
         reached_nodes.add(node)
         # For every node dependent on this:
+        del_edges = []
         for dependent in adg.edge[node]:
             print ' Processing dependent node ' + str(dependent)
             # Ignore it if it's reachable (we've either already processed it
@@ -836,10 +834,11 @@ def prune_reachability(adg, reached_nodes=None, initial=True):
                 # true
                 adg.node[dependent]['adg_reachable'] = True
             print '  New reachability value ' + repr(reachability_value)
+        adg.remove_edges_from(del_edges)
     
     if marked_new: # Recursive case
         print 'Recurring'
-        return prune_reachability(adg, reached_nodes, False)
+        return prune_reachability(adg, reached_nodes)
     
     # Otherwise, we're done marking reachable nodes, and it's time to
     # eliminate all the unreachable ones:

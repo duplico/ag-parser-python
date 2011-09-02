@@ -1,5 +1,5 @@
 from flaskext.wtf import Form, BooleanField, TextField, validators
-from flaskext.wtf import TextAreaField
+from flaskext.wtf import TextAreaField, RadioField
 import ag_parser
 from ag_web.util import *
 
@@ -28,4 +28,5 @@ class ScenarioForm(Form):
             raise validators.ValidationError("Scenario named %s already exists. Choose a different name.")
 
 class GenerationTaskForm(Form):
-    pass
+    adg = RadioField('Attack Graph Type', ['Dependency graph', 'State graph'])
+    depth = TextField('Maximum generation depth', [validators.Length(min=1)

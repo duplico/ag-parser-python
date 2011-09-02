@@ -15,14 +15,35 @@
     <!-- Import fancy-type -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/plugins/fancy-type/screen.css') }}" 
       type="text/css" media="screen, projection" />
+    
+    <style type="text/css"><!--
+      textarea {width:500px;height:250px;padding:5px;}
+    --></style>
 </head>
 <body>
   <div class="container">
-    <div id="header" class="span-24 last">
-      <h1>Attack Graph Generator</h1>
+    <hr />
+    <div id="header" class="span-5">
+      <h1><a href="{{ url_for('web_landing') }}">
+      <img width="150px" src="{{ url_for('static', filename='image/isec_kludge.png') }}" alt="iSec logo" />
+      </a></h1>
+    </div>
+    <div id="headertext" class="span-15">
+    <h1>"Web RAVEN" or something...</h1>
+    <h3 class="alt">{% block breadcrumb %}Attack Graph Generator {% endblock %}</h3>
     </div>
     <hr />
     {% block body %}
+      <div class="span-8 colborder">
+      <h2 class="caps">{% block ltitle %}Left {% endblock %}</h2> <hr />
+      {% block left %}
+      {% endblock %}
+      </div>
+      <div class="span-15 last">
+      <h2 class="caps">{% block rtitle %}Right {% endblock %}</h2> <hr />
+      {% block right %}
+      {% endblock %}
+      </div>
     {% endblock %}
   </div>
 </body>

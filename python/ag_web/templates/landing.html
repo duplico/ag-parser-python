@@ -1,0 +1,72 @@
+﻿{% extends 'base.html' %}
+{% block breadcrumb %}{{ super() }} : Home{% endblock %}
+{% block ltitle %}Instructions {% endblock %}
+
+{% block left %}
+<p class="append-bottom">
+Attack graph generation with webRAVEN has two major concepts, which correspond
+to the two steps required to generate an attack graph.
+</p>
+<dl>
+  <dt>Scenario</dt>
+  <dd>The scenario specification task consists of choosing a scenario name,
+  a network model (initial network state), and a collection of exploit
+  patterns.</dd>
+  <dt>Generation task</dt>
+  <dd>A generation task is attached to a specific scenario. Generally only one
+  or two generation tasks will be necessary per scenario. A generation task is
+  the actual generation of the attack graph, given either (a) a maximum
+  depth specification or (b) the attack dependency graph selection.</dt>
+</dl>
+<p>
+This page shows a list of all currently available scenarios and what generation
+tasks are completed and in progress. To create a new scenario, click "Add
+new scenario."
+</p>
+{% endblock %}
+
+{% block rtitle %}Scenarios{% endblock %}
+
+{% block right %}
+<div id="add" class="append-bottom">
+  <a href="{{ url_for('web_create_scenario') }}">Add new scenario</a>
+</div>
+<table>
+<th>Name</th><th>Completed Attack State Graphs</th>
+<th>Attack State Graphs in Progress</th><th>Attack Dependency Graph</th>
+{% for name in ag_table %}
+  <tr>
+    <td>{{ name }}</td>
+    <td>
+    {% if ag_table[name].0 %}
+      {% for depth in ag_table[name].0 %}
+        depth
+      {% endfor %}
+    {% else %}
+      -
+    {% endif %}
+    </td>
+    <td>
+    {% if ag_table[name].1 %}
+      {% for depth in ag_table[name].1 %}
+        depth
+      {% endfor %}
+    {% else %}
+      -
+    {% endif %}
+    </td>
+    <td>
+    {% if ag_table[name].2 == 1 %}
+      Working
+    {% elif ag_table[name].2 == 2 %}
+      Done
+    {% else %}
+      -
+    {% endif %}</td>
+  </tr>
+{% endfor %}
+</table>
+<div id="add2" class="prepend-top">
+  <a href="{{ url_for('web_create_scenario') }}">Add new scenario</a>
+</div>
+{% endblock %}

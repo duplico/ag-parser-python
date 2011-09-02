@@ -6,6 +6,7 @@ from flask import request, make_response, render_template
 import flask
 
 from ag_web import app
+from ag_web.util import *
 
 @app.route('/v0/attackgraphs/', methods=['GET'])
 def api_read_scenarios():

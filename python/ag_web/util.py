@@ -9,7 +9,7 @@ import networkx as nx
 import ag_generator
 import ag_parser
 
-from ag_web import executor, running_futures
+from ag_web import executor, running_futures, AG_DATA_PATH
 
 ### Utility functions #########################################################
 
@@ -94,7 +94,7 @@ def create_scenario_files(name, nm, xp):
         return 'Parse error in nm: %s' % (str(e),)
     
     # Now go ahead and create the files.    
-        os.makedirs(parent_path)
+    os.makedirs(get_ag_path(name))
     paths = get_scenario_paths(name)
     with open(paths['nm'], 'w') as nmf, open(paths['xp'], 'w') as xpf:
         nmf.write(nmstring)
@@ -132,6 +132,32 @@ def create_task_files(name, depth=False, adg=False):
 def is_locked(name, depth=False, adg=False):
     assert operator.xor(depth, adg)
     return os.path.isfile(get_ag_lockfile(name, depth, adg))
+
+def get_ag_tasks(name):
+    if not ag_exists(name):
+        return False
+    done_depths = []
+    locked_depths = []
+    adg = 0
+    for directory in os.listdir(get_ag_path(name)):
+        if directory.startswith('out_'):
+            depth = int(directory.split('_')[1])
+            if is_locked(name, depth):
+                locked_depths.append(depth)
+            else:
+                done_depths.append(depth)
+        elif directory == 'adg':
+            if is_locked(name, adg=True):
+                adg = 1
+            else:
+                adg = 2
+    return (done_depths, locked_depths, adg)
+
+def get_ag_overview():
+    ags = dict()
+    for ag in get_ag_names():
+        ags[ag] = get_ag_tasks(ag)
+    return ags
 
 # Attack graph generation/rendering:
 

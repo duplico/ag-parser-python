@@ -1,22 +1,29 @@
-<!doctype html>
-<title>Attack Graph Generator</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/screen.css') }}" type="text/css" media="screen, projection">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/print.css') }}" type="text/css" media="print"> 
-  <!--[if lt IE 8]>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/ie.css') }}" type="text/css" media="screen, projection">
-  <![endif]-->
-<link rel=stylesheet type=text/css href="">
-<div class=page>
-  <h1>Flaskr</h1>
-  <div class=metanav>
-  {% if not session.logged_in %}
-    <a href="{{ url_for('login') }}">log in</a>
-  {% else %}
-    <a href="{{ url_for('logout') }}">log out</a>
-  {% endif %}
+﻿<!doctype html>
+<html>
+<head>
+  <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+  <title>{% block title %} Attack Graph Generator {% endblock %}</title>
+  
+  <!-- Framework CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/screen.css') }}" 
+      type="text/css" media="screen, projection" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/print.css') }}"
+      type="text/css" media="print" /> 
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/ie.css') }}" type="text/css" media="screen, projection">
+    <![endif]-->
+    <!-- Import fancy-type -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/blueprint/plugins/fancy-type/screen.css') }}" 
+      type="text/css" media="screen, projection" />
+</head>
+<body>
+  <div class="container">
+    <div id="header" class="span-24 last">
+      <h1>Attack Graph Generator</h1>
+    </div>
+    <hr />
+    {% block body %}
+    {% endblock %}
   </div>
-  {% for message in get_flashed_messages() %}
-    <div class=flash>{{ message }}</div>
-  {% endfor %}
-  {% block body %}{% endblock %}
-</div>
+</body>
+</html>

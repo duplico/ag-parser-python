@@ -44,11 +44,11 @@
 from concurrent import futures
 import os
 import base64
-import operator.xor
+import operator
 from StringIO import StringIO
 import shutil
 
-from flask import Flask, request, make_response
+from flask import Flask, request, make_response, render_template
 import flask
 import networkx as nx
 
@@ -57,7 +57,7 @@ import ag_parser
 
 # TODO: probably move this over to a Flask config setting if possible?
 MAX_WORKERS = 5
-AG_DATA_PATH = 'webdata' # DO NOT SERVE FROM THIS PATH! TODO: mode xx0
+AG_DATA_PATH = 'ag_web/webdata' # DO NOT SERVE FROM THIS PATH! TODO: mode xx0
 
 executor = futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 app = Flask(__name__)
@@ -264,55 +264,7 @@ def write_png(name, depth, ag, filehandle):
         filehandle.write(rendered.read())
         filehandle.flush()
 
-def api_read_adg(name):
-    """
-    Defaults to dot format.
-    """
-    # Check for existence
-    print ' * getting adg for ' + name
-    if not os.path.isdir(get_ag_path(name)):
-        return make_response('unknown AG name %s' % (name,), 404)
-    print ' * scenario name found'
-    if os.path.isfile(get_ag_lockfile(name, adg=True)):
-        print ' * locked'
-        if name not in running_futures or 'adg' not in running_futures[name]:
-            print ' * not running'
-            shutil.rmtree(get_ag_path(name)) # TODO: readd: , depth, adg)))
-            return make_response('internal error, resubmit generation request',
-                                 500)
-        print 'what?'
-        print running_futures[name]['adg'].exception()
-        return make_response('still processing', 400)
-    
-    if not ag_exists(name, adg=True):
-        return make_response('ADG not generated', 404)
-    
-    # Exists, and we can return it.
-    ag = get_ag(name, depth=False, adg=True)
-    
-    # Defaults to dot
-    out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('*', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', 'xml') : (nx.write_graphml, 'text/xml'), # UTF8=>text
-                 ('application', 'pdf') : (lambda a,b: write_pdf(name, depth, a, b), 'text/application/pdf'),
-                 ('image', 'png') : (lambda a,b: write_png(name,depth,a,b), 'text/image/png'),
-        }
-    # Check what format the client requested:
-    accept_type = flask.request.headers['Accept']
-    # This just splits and strips the MIME into a 2-tuple
-    accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
-    out_tuple = out_types[accept_mime] # tuple of (callable, canonical MIME)
-
-    outstring = StringIO() # Fake a file handle here to play nice with nx.
-    out_tuple[0](ag, outstring) # Call our output function
-    resp = make_response(outstring.getvalue(), 200) # Response
-    resp.mimetype=out_tuple[1] # Correct the MIME according to out_tuple
-    resp.implicit_sequence_conversion=False
-    resp.data = outstring.getvalue()
-    return resp
-
-def get_render(name, depth=False, accept_type='text/vnd.graphviz'):
+def get_render(name,depth=False, accept_type='text/vnd.graphviz'):
     """
     Defaults to dot format.
     """
@@ -341,27 +293,20 @@ def get_render(name, depth=False, accept_type='text/vnd.graphviz'):
     ag = get_ag(name, depth, adg)
     
     # Defaults to dot
-    out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('*', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', 'xml') : (nx.write_graphml, 'text/xml'), # UTF8=>text
-                 ('application', 'pdf') : (lambda a,b: write_pdf(name, depth, a, b), 'application/pdf'),
-                 ('image', 'png') : (lambda a,b: write_png(name,depth,a,b), 'image/png'),
+    out_types = {'text/vnd.graphviz' : nx.write_dot,
+                 '*/*' : nx.write_dot,
+                 'text/*' : nx.write_dot,
+                 'text/xml' : nx.write_graphml, # UTF8=>text
+                 'application/pdf' : lambda a,b: write_pdf(name, depth, a, b),
+                 'image/png' : lambda a,b: write_png(name,depth,a,b),
         }
     # This just splits and strips the MIME into a 2-tuple
     accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
-    out_tuple = out_types[accept_mime] # tuple of (callable, canonical MIME)
+    out_fun = out_types[accept_type] # output function
+    outstring = StringIO() # Dummy up a file-like string
+    out_fun[0](ag, outstring) # Call our output function on it
+    return outstring
 
-    outstring = StringIO() # Fake a file handle here to play nice with nx.
-    out_tuple[0](ag, outstring) # Call our output function
-    resp = make_response(outstring.getvalue(), 200) # Response
-    resp.mimetype=out_tuple[1] # Correct the MIME according to out_tuple
-    resp.implicit_sequence_conversion=False
-    resp.data = outstring.getvalue()
-    return resp
-
-
-        
 ####### Web service API views #################################################
 @app.route('/v0/attackgraphs/', methods=['GET'])
 def api_read_scenarios():
@@ -415,99 +360,52 @@ def api_create_generation_task(name):
         return (flask.url_for('api_read_adg', name=name), 202)
     else:
         return (flask.url_for('api_read_ag', name=name, depth=depth), 202)
+
+def api_base_read(name, depth=False):
+    out_types = {('text', 'vnd.graphviz') : 'text/vnd.graphviz',
+                 ('*', '*') : 'text/vnd.graphviz',
+                 ('text', '*') : 'text/vnd.graphviz',
+                 ('text', 'xml') : 'text/xml', # UTF8=>text
+                 ('application', 'pdf') : 'text/application/pdf',
+                 ('image', 'png') : 'text/image/png',
+        }
+    # Check what format the client requested:
+    accept_mime = tuple(flask.request.headers['Accept'].split())
+    if not accept_mime in out_types:
+        return make_response('Unsupported MIME type requested.', 406)
+    accept_type = out_types[accept_mime]
+    ret = get_render(name, depth, accept_mime)
+    if type(ret) == tuple: # Error response
+        return make_response(*ret)
     
+    # Otherwise, it's a crazy file-like string.
+    outstring = ret
+    resp = make_response(outstring.getvalue(), 200) # Response
+    resp.mimetype=accept_mime # Correct the MIME according to out_tuple
+    resp.implicit_sequence_conversion=False
+    resp.data = outstring.getvalue()
+    return resp
+
 # TODO: refactor to DRY
 @app.route('/v0/attackgraphs/<name>/adg/', methods=['GET',])
 def api_read_adg(name):
     """
     Defaults to dot format.
     """
-    # Check for existence
-    print ' * getting adg for ' + name
-    if not os.path.isdir(get_ag_path(name)):
-        return make_response('unknown AG name %s' % (name,), 404)
-    print ' * scenario name found'
-    if os.path.isfile(get_ag_lockfile(name, adg=True)):
-        print ' * locked'
-        if name not in running_futures or 'adg' not in running_futures[name]:
-            print ' * not running'
-            shutil.rmtree(get_ag_path(name)) # TODO: readd: , depth, adg)))
-            return make_response('internal error, resubmit generation request',
-                                 500)
-        print 'what?'
-        print running_futures[name]['adg'].exception()
-        return make_response('still processing', 400)
-    
-    if not ag_exists(name, adg=True):
-        return make_response('ADG not generated', 404)
-    
-    # Exists, and we can return it.
-    ag = get_ag(name, depth=False, adg=True)
-    
-    # Defaults to dot
-    out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('*', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', 'xml') : (nx.write_graphml, 'text/xml'), # UTF8=>text
-                 ('application', 'pdf') : (lambda a,b: write_pdf(name, depth, a, b), 'text/application/pdf'),
-                 ('image', 'png') : (lambda a,b: write_png(name,depth,a,b), 'text/image/png'),
-        }
-    # Check what format the client requested:
-    accept_type = flask.request.headers['Accept']
-    # This just splits and strips the MIME into a 2-tuple
-    accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
-    out_tuple = out_types[accept_mime] # tuple of (callable, canonical MIME)
-
-    outstring = StringIO() # Fake a file handle here to play nice with nx.
-    out_tuple[0](ag, outstring) # Call our output function
-    resp = make_response(outstring.getvalue(), 200) # Response
-    resp.mimetype=out_tuple[1] # Correct the MIME according to out_tuple
-    resp.implicit_sequence_conversion=False
-    resp.data = outstring.getvalue()
-    return resp
+    return api_base_read(name)
 
 @app.route('/v0/attackgraphs/<name>/ag/<int:depth>/', methods=['GET',])
 def api_read_ag(name, depth):
     """
     Defaults to dot format.
     """
-    # Check for existence
-    if not os.path.isdir(get_ag_path(name)):
-        return make_response('unknown AG name %s' % (name,), 404)
-    if os.path.isfile(get_ag_lockfile(name, depth)):
-        if name not in running_futures or depth not in running_futures[name]:
-            shutil.rmtree(get_ag_path(name)) # TODO: readd: , depth)))
-            return make_response('internal error, resubmit generation request',
-                                 500)
-        else:
-            return make_response('still processing', 122)
-    if not ag_exists(name, depth):
-        return make_response('ungenerated AG depth', 404)
-    
-    # Exists, and we can return it.
-    ag = get_ag(name, depth)
-    
-    # Defaults to dot
-    out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('*', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', '*') : (nx.write_dot, 'text/vnd.graphviz'),
-                 ('text', 'xml') : (nx.write_graphml, 'text/xml'), # UTF8=>text
-                 ('application', 'pdf') : (lambda a,b: write_pdf(name, depth, a, b), 'text/application/pdf'),
-                 ('image', 'png') : (lambda a,b: write_png(name,depth,a,b), 'text/image/png'),
-        }
-    # Check what format the client requested:
-    accept_type = flask.request.headers['Accept']
-    # This just splits and strips the MIME into a 2-tuple
-    accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
-    out_tuple = out_types[accept_mime] # tuple of (callable, canonical MIME)
+    return api_base_read(name, depth)
 
-    outstring = StringIO() # Fake a file handle here to play nice with nx.
-    out_tuple[0](ag, outstring) # Call our output function
-    resp = make_response(outstring.getvalue(), 200) # Response
-    resp.mimetype=out_tuple[1] # Correct the MIME according to out_tuple
-    resp.implicit_sequence_conversion=False
-    resp.data = outstring.getvalue()
-    return resp
+### Interactive Views #########################################################
 
-if __name__ == '__main__':    
-    app.run(debug=True, host='0.0.0.0')
+@app.route('/interactive/attackgraphs/', methods=['GET',])
+def web_landing():
+    """
+    Defaults to dot format.
+    """
+    return render_template('scenario_form.html')

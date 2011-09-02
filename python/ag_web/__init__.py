@@ -182,6 +182,10 @@ def create_task_files(name, depth=False, adg=False):
         os.makedirs(output_path)
     return False
 
+def is_locked(name, depth=False, adg=False):
+    assert operator.xor(depth, adg)
+    return os.path.isfile(get_ag_lockfile(name, depth, adg))
+
 # Attack graph generation/rendering:
 
 def new_generation_task(name, depth=False, adg=False):
@@ -259,6 +263,104 @@ def write_png(name, depth, ag, filehandle):
     with open(render_path, 'rb') as rendered:
         filehandle.write(rendered.read())
         filehandle.flush()
+
+def api_read_adg(name):
+    """
+    Defaults to dot format.
+    """
+    # Check for existence
+    print ' * getting adg for ' + name
+    if not os.path.isdir(get_ag_path(name)):
+        return make_response('unknown AG name %s' % (name,), 404)
+    print ' * scenario name found'
+    if os.path.isfile(get_ag_lockfile(name, adg=True)):
+        print ' * locked'
+        if name not in running_futures or 'adg' not in running_futures[name]:
+            print ' * not running'
+            shutil.rmtree(get_ag_path(name)) # TODO: readd: , depth, adg)))
+            return make_response('internal error, resubmit generation request',
+                                 500)
+        print 'what?'
+        print running_futures[name]['adg'].exception()
+        return make_response('still processing', 400)
+    
+    if not ag_exists(name, adg=True):
+        return make_response('ADG not generated', 404)
+    
+    # Exists, and we can return it.
+    ag = get_ag(name, depth=False, adg=True)
+    
+    # Defaults to dot
+    out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('*', '*') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('text', '*') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('text', 'xml') : (nx.write_graphml, 'text/xml'), # UTF8=>text
+                 ('application', 'pdf') : (lambda a,b: write_pdf(name, depth, a, b), 'text/application/pdf'),
+                 ('image', 'png') : (lambda a,b: write_png(name,depth,a,b), 'text/image/png'),
+        }
+    # Check what format the client requested:
+    accept_type = flask.request.headers['Accept']
+    # This just splits and strips the MIME into a 2-tuple
+    accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
+    out_tuple = out_types[accept_mime] # tuple of (callable, canonical MIME)
+
+    outstring = StringIO() # Fake a file handle here to play nice with nx.
+    out_tuple[0](ag, outstring) # Call our output function
+    resp = make_response(outstring.getvalue(), 200) # Response
+    resp.mimetype=out_tuple[1] # Correct the MIME according to out_tuple
+    resp.implicit_sequence_conversion=False
+    resp.data = outstring.getvalue()
+    return resp
+
+def get_render(name, depth=False, accept_type='text/vnd.graphviz'):
+    """
+    Defaults to dot format.
+    """
+    # Type configuration:
+    adg = False
+    if not depth:
+        adg = True
+    
+    # Input validation on scenario/task existence:
+    if not ag_exists(name):
+        return ('Unknown scenario name', 404)
+    if not ag_exists(name, depth, adg):
+        return ('Unknown generation task', 404)
+    
+    # Check for lock
+    if is_locked(name, depth, adg):
+        if name not in running_futures or depth not in running_futures[name]:
+            shutil.rmtree(get_ag_path(name, depth, adg)) # TODO?
+            return ('internal error, resubmit generation request', 500)
+        else:
+            return ('still processing', 122)
+    if not ag_exists(name, depth):
+        return ('unrequested AG depth', 404)
+    
+    # Exists, and we can return it.
+    ag = get_ag(name, depth, adg)
+    
+    # Defaults to dot
+    out_types = {('text', 'vnd.graphviz') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('*', '*') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('text', '*') : (nx.write_dot, 'text/vnd.graphviz'),
+                 ('text', 'xml') : (nx.write_graphml, 'text/xml'), # UTF8=>text
+                 ('application', 'pdf') : (lambda a,b: write_pdf(name, depth, a, b), 'application/pdf'),
+                 ('image', 'png') : (lambda a,b: write_png(name,depth,a,b), 'image/png'),
+        }
+    # This just splits and strips the MIME into a 2-tuple
+    accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))
+    out_tuple = out_types[accept_mime] # tuple of (callable, canonical MIME)
+
+    outstring = StringIO() # Fake a file handle here to play nice with nx.
+    out_tuple[0](ag, outstring) # Call our output function
+    resp = make_response(outstring.getvalue(), 200) # Response
+    resp.mimetype=out_tuple[1] # Correct the MIME according to out_tuple
+    resp.implicit_sequence_conversion=False
+    resp.data = outstring.getvalue()
+    return resp
+
+
         
 ####### Web service API views #################################################
 @app.route('/v0/attackgraphs/', methods=['GET'])

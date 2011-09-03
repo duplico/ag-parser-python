@@ -17,7 +17,7 @@ to the two steps required to generate an attack graph.
   <dd>A generation task is attached to a specific scenario. Generally only one
   or two generation tasks will be necessary per scenario. A generation task is
   the actual generation of the attack graph, given either (a) a maximum
-  depth specification or (b) the attack dependency graph selection.</dt>
+  depth specification or (b) the attack dependency graph selection.</dd>
 </dl>
 <p>
 This page shows a list of all currently available scenarios and what generation
@@ -34,18 +34,18 @@ new scenario."
   Add new scenario</a>
 </div>
 <table>
-<th>Name</th><th>Actions</th>
+<tr><th>Name</th><th>Actions</th>
 <th>Completed Attack State Graphs</th>
-<th>Attack State Graphs in Progress</th><th>Attack Dependency Graph</th>
+<th>Attack State Graphs in Progress</th><th>Attack Dependency Graph</th></tr>
 {% for name in ag_table %}
   <tr>
     <td>
     <a href="{{ url_for('web_scenario_detail', name=name) }}">{{ name }}</a>
     </td>
-    <td width="66">
-    <a href="{{ url_for('web_scenario_detail', name=name) }}"><img alt="View scenario details" height="20px" src="{{ url_for('static', filename='image/glass.png') }}" /></a>
-    <a href="{{ url_for('web_create_generation_task', name=name) }}"><img alt="Add generation task" height="20px" src="{{ url_for('static', filename='image/plus_green.png') }}" /></a>
-    <a href="{{ url_for('web_scenario_delete', name=name) }}"><img alt="Delete scenario" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" /></a>
+    <td class="buttonbank">
+    <a href="{{ url_for('web_scenario_detail', name=name) }}"><img alt="View scenario details" class="button" src="{{ url_for('static', filename='image/glass.png') }}" /></a>
+    <a href="{{ url_for('web_create_generation_task', name=name) }}"><img alt="Add generation task" class="button" src="{{ url_for('static', filename='image/plus_green.png') }}" /></a>
+    <a href="{{ url_for('web_scenario_delete', name=name) }}"><img alt="Delete scenario" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a>
     </td>
     <td>
     {{ ag_table[name].0|join(', ')|default('-', true) }}

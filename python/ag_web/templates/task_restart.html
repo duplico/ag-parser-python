@@ -10,4 +10,12 @@ Regenerate this task?
 
 {% block rtitle %}Generation Task Restart{% endblock %}
 
-{% block button %}Confirm Regeneration{% endblock %}">
+{% block right %}
+  <p>
+    Please confirm that you wish to delete and regenerate the {{ task }}
+    for scenario "{{ name }}"
+  </p>
+  {{ super() }}
+{% endblock %}
+
+{% block button %}Regenerate {{ name }} {{ task }}{% endblock %}">

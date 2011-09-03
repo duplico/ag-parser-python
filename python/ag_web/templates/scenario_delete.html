@@ -10,4 +10,12 @@ Delete this scenario?
 
 {% block rtitle %}Scenario Deletion{% endblock %}
 
-{% block button %}Confirm Deletion{% endblock %}">
+{% block right %}
+  <p>
+    Please confirm that you wish to delete scenario "{{ name }}".
+  </p>
+  {{ super() }}
+{% endblock %}
+
+
+{% block button %}Delete {{ name }}{% endblock %}">

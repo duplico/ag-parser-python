@@ -178,21 +178,23 @@ def web_task_restart(name, task):
     if not adg:
         depth = int(task)
     
+    if adg:
+        task_name = 'attack dependency graph'
+    else:
+        task_name = 'attack state graph of depth %i' % depth
+    
     form = forms.ConfirmForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
         delete_task(name, depth=depth, adg=adg)
         ret = new_generation_task(name, depth=depth, adg=adg)
-        if adg:
-            task_name = 'attack dependency graph'
-        else:
-            task_name = 'attack state graph of depth %i' % depth
         if not ret:
             flash('Restarted generation of %s %s' % (name, task_name), 'success')
             return redirect(url_for('web_scenario_detail', name=name))
         else:
             return make_response(*ret)
-    return render_template('task_restart.html', form=form, name=name)
+    return render_template('task_restart.html', form=form, name=name,
+                           task=task_name)
 
 @app.route('/interactive/attackgraphs/<name>/<task>/delete/', methods=['GET','POST'])
 @requires_auth
@@ -207,14 +209,15 @@ def web_task_delete(name, task):
     if not adg:
         depth = int(task)
     
+    if adg:
+        task_name = 'attack dependency graph'
+    else:
+        task_name = 'attack state graph of depth %i' % depth
     form = forms.ConfirmForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
         delete_task(name, depth=depth, adg=adg)
-        if adg:
-            task_name = 'attack dependency graph'
-        else:
-            task_name = 'attack state graph of depth %i' % depth
         flash('Deleted %s %s' % (name, task_name), 'success')
         return redirect(url_for('web_scenario_detail', name=name))
-    return render_template('task_delete.html', form=form, name=name)
+    return render_template('task_delete.html', form=form, name=name,
+                           task=task_name)

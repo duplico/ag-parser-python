@@ -1,5 +1,6 @@
-﻿<!doctype html>
-<html>
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
   <title>{% block title %} Attack Graph Generator {% endblock %}</title>
@@ -18,6 +19,11 @@
     
     <style type="text/css"><!--
       textarea {width:500px;height:250px;padding:5px;}
+      a {text-decoration:none;}
+      img.button {height:20px;}
+      img.logo {width:150px;}
+      img.bigimage {max-width:900px;}
+      td.buttonbank {width:66px;}
     --></style>
 </head>
 <body>
@@ -25,12 +31,12 @@
     <hr />
     <div id="header" class="span-5">
       <h1><a href="{{ url_for('web_landing') }}">
-      <img width="150px" src="{{ url_for('static', filename='image/isec_kludge.png') }}" alt="iSec logo" />
+      <img class="logo" src="{{ url_for('static', filename='image/isec_kludge.png') }}" alt="iSec logo" />
       </a></h1>
     </div>
     <div id="headertext" class="span-15">
     <h1>"Web RAVEN" or something...</h1>
-    <h3 class="alt">{% block breadcrumb %}<a href="{{ url_for('web_landing') }}">Attack Graph Generator</a> {% endblock %}</h3>
+    <h3 class="alt">{% block breadcrumb %}<a class="alt" href="{{ url_for('web_landing') }}">Attack Graph Generator</a> {% endblock %}</h3>
     </div>
     <hr />
     {% block flash %}

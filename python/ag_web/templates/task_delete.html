@@ -10,4 +10,12 @@ Delete this task?
 
 {% block rtitle %}Generation Task Deletion{% endblock %}
 
-{% block button %}Confirm Deletion{% endblock %}">
+{% block right %}
+  <p>
+    Please confirm that you wish to delete the {{ task }}
+    for scenario "{{ name }}"
+  </p>
+  {{ super() }}
+{% endblock %}
+
+{% block button %}Delete {{ name }} {{ task }}{% endblock %}">

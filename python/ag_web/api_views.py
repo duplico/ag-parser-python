@@ -9,14 +9,12 @@ from ag_web import app
 from ag_web.util import *
 
 @app.route('/v0/attackgraphs/', methods=['GET'])
-@requires_auth
 def api_read_scenarios():
     ags = get_ag_names()
     resp = flask.jsonify(attack_graphs=ags)
     return resp
 
 @app.route('/v0/attackgraphs/', methods=['POST'])
-@requires_auth
 def api_create_scenario(): 
     # Check that parameters exist.
     for parm in ('nm', 'xp', 'name'):
@@ -39,14 +37,12 @@ def api_create_scenario():
         return make_response(flask.url_for('api_read_scenario', name=name), 201)
 
 @app.route('/v0/attackgraphs/<name>/', methods=['GET'])
-@requires_auth
 def api_read_scenario(name):
     if not ag_exists(name):
         return make_response('Unknown attack graph scenario', 404)
     return make_response('Exists', 200)
     
 @app.route('/v0/attackgraphs/<name>/', methods=['POST'])
-@requires_auth
 def api_create_generation_task(name):
     adg = 'adg' in request.args
     try:
@@ -91,7 +87,6 @@ def api_base_read(name, depth=False):
     return resp
 
 @app.route('/v0/attackgraphs/<name>/adg/', methods=['GET',])
-@requires_auth
 def api_read_adg(name):
     """
     Defaults to dot format.
@@ -99,7 +94,6 @@ def api_read_adg(name):
     return api_base_read(name)
 
 @app.route('/v0/attackgraphs/<name>/ag/<int:depth>/', methods=['GET',])
-@requires_auth
 def api_read_ag(name, depth):
     """
     Defaults to dot format.

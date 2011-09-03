@@ -1,0 +1,1 @@
+from ag_web import app as application

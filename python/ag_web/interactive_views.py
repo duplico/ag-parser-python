@@ -13,7 +13,6 @@ from ag_web.util import *
 
 
 @app.route('/interactive/', methods=['GET',])
-@requires_auth
 def web_landing():
     """
     Landing page (scenario listing).
@@ -22,7 +21,6 @@ def web_landing():
     return render_template('landing.html', ag_table=ags)
 
 @app.route('/interactive/attackgraphs/<name>/', methods=['GET',])
-@requires_auth
 def web_scenario_detail(name):
     """
     Landing page (scenario listing).
@@ -36,7 +34,6 @@ def web_scenario_detail(name):
                            nm=nm, xp=xp)
 
 @app.route('/interactive/attackgraphs/<name>/initial.png', methods=['GET',])
-@requires_auth
 def web_scenario_initialstate(name):
     """
     Landing page (scenario listing).
@@ -58,7 +55,6 @@ def web_scenario_initialstate(name):
                            nm=nm, xp=xp)
 
 @app.route('/interactive/attackgraphs/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
-@requires_auth
 def web_task_download(name, graph_type, fn, ext):
     """
     Attack graph download.
@@ -102,7 +98,6 @@ def web_task_download(name, graph_type, fn, ext):
     return resp
     
 @app.route('/interactive/attackgraphs/', methods=['GET', 'POST'])
-@requires_auth
 def web_create_scenario():
     """
     Scenario creation form page.
@@ -124,7 +119,6 @@ def web_create_scenario():
     return render_template('scenario_form.html', form=form)
 
 @app.route('/interactive/attackgraphs/<name>/add/', methods=['GET', 'POST'])
-@requires_auth
 def web_create_generation_task(name):
     """
     Generation task creation form page.
@@ -154,7 +148,6 @@ def web_create_generation_task(name):
     return render_template('task_form.html', form=form, name=name)
 
 @app.route('/interactive/attackgraphs/<name>/delete/', methods=['GET','POST'])
-@requires_auth
 def web_scenario_delete(name):
     """
     Attack graph task restart.
@@ -168,7 +161,6 @@ def web_scenario_delete(name):
     return render_template('scenario_delete.html', form=form, name=name)
 
 @app.route('/interactive/attackgraphs/<name>/<task>/restart/', methods=['GET','POST'])
-@requires_auth
 def web_task_restart(name, task):
     """
     Attack graph task restart.
@@ -199,7 +191,6 @@ def web_task_restart(name, task):
                            task=task_name)
 
 @app.route('/interactive/attackgraphs/<name>/<task>/delete/', methods=['GET','POST'])
-@requires_auth
 def web_task_delete(name, task):
     """
     Attack graph task delete.

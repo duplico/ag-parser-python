@@ -11,6 +11,13 @@ import ag_generator
 from ag_web import app, forms
 from ag_web.util import *
 
+@app.route('/', methods=['GET',])
+def landing_redirect():
+    """
+    Redirects to landing page.
+    """
+    flash('Please access the interactive generator using this URL in the future.', 'info')
+    return redirect(url_for('web_landing'))
 
 @app.route('/interactive/', methods=['GET',])
 def web_landing():

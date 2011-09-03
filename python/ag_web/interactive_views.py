@@ -119,7 +119,8 @@ def web_create_scenario():
         else:
             # Something bad happened that I wasn't expecting.
             # I/O error maybe?
-            assert False
+            flash(ret[0], 'error')
+            return render_template('scenario_form.html', form=form)
     return render_template('scenario_form.html', form=form)
 
 @app.route('/interactive/attackgraphs/<name>/add/', methods=['GET', 'POST'])
@@ -148,7 +149,8 @@ def web_create_generation_task(name):
                 flash('Queued generation of %s %s' % (name, task_name), 'success')
             return redirect(url_for('web_scenario_detail', name=name))
         else:
-            return make_response(*ret)
+            flash(ret[0], 'error')
+            return render_template('task_form.html', form=form, name=name)
     return render_template('task_form.html', form=form, name=name)
 
 @app.route('/interactive/attackgraphs/<name>/delete/', methods=['GET','POST'])

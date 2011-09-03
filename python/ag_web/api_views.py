@@ -34,7 +34,7 @@ def api_create_scenario():
     # New AG:
     ret = create_scenario_files(name, nm, xp)
     if ret:
-        return make_response(ret, 400)
+        return make_response(*ret)
     else:
         return make_response(flask.url_for('api_read_scenario', name=name), 201)
 

@@ -110,7 +110,7 @@ def create_scenario_files(name, nm, xp):
     Returns False on successful scenario creation and error string otherwise.
     """
     if len(name)>100:
-        return 'Scenario name too long.'
+        return ('Scenario name too long.', 400)
     
     # Decode and parse (to check for errors) nm/xp files:
     nmstring = nm
@@ -119,7 +119,7 @@ def create_scenario_files(name, nm, xp):
         ag_parser.networkmodel.parseString(nmstring)
         ag_parser.exploits.parseString(xpstring)
     except Exception, e:
-        return 'Parse error in nm: %s' % (str(e),)
+        return ('Parse error: %s' % (str(e),), 400)
     
     # Now go ahead and create the files.    
     os.makedirs(get_ag_path(name))

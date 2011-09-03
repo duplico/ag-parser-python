@@ -1002,6 +1002,13 @@ def viz_ag(ag, file_prefix, outname, depth, write_states):
         sg_out_name = os.path.join(file_prefix, 'ag_sg_depth%i.dot' % (depth,))
         nx.write_dot(stategraphs_union, sg_out_name)
 
+def viz_nm(nm_file):
+    netmodel_parse = ag_parser.networkmodel.parseFile(nm_file)
+    netstate = ns_from_nm(netmodel_parse)
+    network_model = NetworkModel(netstate)
+    stategraph = network_model.get_state_graph('Initial')
+    return stategraph
+
 def main(nm_file, xp_file, depth, state_graph=True):
     global ag
     ag = build_attack_graph(nm_file, xp_file, int(depth), state_graph)

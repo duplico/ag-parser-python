@@ -70,3 +70,9 @@ class GenerationTaskForm(Form):
     depth = TextField('Maximum generation depth (state graph only)', 
                       [EmptyIfFieldNotMatches('graph_type', 'sg'),
                        validators.NumberRange(min=1)])
+
+class ConfirmForm(Form):
+    """
+    Form validator to confirm stuff. Provides POST + CSRF.
+    """
+    pass

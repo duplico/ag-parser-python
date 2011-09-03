@@ -1,6 +1,6 @@
-{% extends 'base.html' %}
+{% extends 'scenario_base.html' %}
 
-{% block breadcrumb %}{{ super() }} : {{ name }}{% endblock %}
+{% block breadcrumb %}{{ super() }}{% endblock %}
 {% block ltitle %}Instructions {% endblock %}
 
 {% block left %}
@@ -25,7 +25,8 @@ to the two steps required to generate an attack graph.
           <td>Dependency Graph</td>
           <td>-</td>
           <td>
-          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" /> | Delete</td>
+          <a href="{{ url_for('web_task_restart', name=name, task="adg") }}"><img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
+          <a href="{{ url_for('web_task_delete', name=name, task="adg") }}"><img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
           <td>-</td>
           <td>In Progress</td>
         </tr>
@@ -34,9 +35,8 @@ to the two steps required to generate an attack graph.
           <td>Dependency Graph</td>
           <td>-</td>
           <td>
-          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" />
-          <img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" />
-          </td>
+          <a href="{{ url_for('web_task_restart', name=name, task="adg") }}"><img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
+          <a href="{{ url_for('web_task_delete', name=name, task="adg") }}"><img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
           <td>
           <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='pdf') }}">PDF</a> | 
           <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='png') }}">PNG</a> |
@@ -51,9 +51,8 @@ to the two steps required to generate an attack graph.
           <td>State Graph</td>
           <td>{{ depth }}</td>
           <td>
-          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" />
-          <img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" />
-          </td>
+          <a href="{{ url_for('web_task_restart', name=name, task=depth) }}"><img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
+          <a href="{{ url_for('web_task_delete', name=name, task=depth) }}"><img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
           <td>
           <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='pdf') }}">PDF</a> | 
           <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='png') }}">PNG</a> |
@@ -69,7 +68,7 @@ to the two steps required to generate an attack graph.
           <td>State Graph</td>
           <td>{{ depth }}</td>
           <td>
-          <img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" />
+          <a href="{{ url_for('web_task_restart', name=name, task=depth) }}"><img alt="Regenerate" height="20px" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
           <img alt="Delete" height="20px" src="{{ url_for('static', filename='image/x_red.png') }}" />
           </td>
           <td>-</td>
@@ -78,4 +77,26 @@ to the two steps required to generate an attack graph.
       {% endfor %}
     {% endif %}
 </table>
+{% endblock %}
+{% block underbody %}
+<hr />
+<h2>Scenario Details</h2>
+<hr />
+<div class="span-11 first colborder">
+<h2 class="caps">Network Model</h2>
+<pre>
+{{ nm }}
+</pre>
+</div>
+<div class="span-12 last">
+<h2 class="caps">Exploit Patterns</h2>
+<pre>
+{{ xp }}
+</pre>
+</div>
+<hr />
+<div class="span-24 first last">
+<h2 class="caps">Initial State Graph</h2>
+<img max-width="950px" src="{{ url_for('web_scenario_initialstate', name=name) }}" />
+</div>
 {% endblock %}

@@ -32,6 +32,9 @@ def get_ag_names():
     Returns the name of every stored scenario.
     """
     # TODO: handle broken stuff
+    # TODO: may not work:
+    if not os.path.isdir(AG_DATA_PATH):
+        os.makedirs(AG_DATA_PATH)
     return [path_decode_name(name) for name in
             os.listdir(AG_DATA_PATH)]
 
@@ -54,7 +57,7 @@ def get_ag_lockfile(name, depth=None, adg=False):
     """
     Returns the path to the lockfile for a generation task.
     """
-    assert operator.xor(depth, adg)
+    assert operator.xor(bool(depth), adg)
     return os.path.join(get_ag_path(name, depth, adg), '.lock')
     
 def ag_exists(name, depth=None, adg=False):
@@ -108,14 +111,37 @@ def get_ag_definition(name):
         xp_def = xp.read()
     return (nm_def, xp_def)
     
+def delete_scenario(name):
+    directory = get_ag_path(name)
+    if name in running_futures:
+        for ag in running_futures[name]:
+            future = running_futures[name][ag]
+            if future.running():
+                assert future.cancel()
+        del running_futures[name]
+    shutil.rmtree(directory)
+
 # Task management:
+
+def delete_task(name, depth=False, adg=False):
+    assert operator.xor(bool(depth), adg)
+    directory = get_ag_path(name, depth=depth, adg=adg)
+    test = 'adg'
+    if not adg:
+        test = depth
+    if name in running_futures and test in running_futures[name]:
+        future = running_futures[name][test]
+        if future.running():
+            assert future.cancel()
+        del running_futures[name]
+    shutil.rmtree(directory)
 
 def create_task_files(name, depth=False, adg=False):
     """
     Returns False on successful task creation and error string otherwise.
     """
     # Sanity check: need at least one of depth, adg:
-    assert operator.xor(depth, adg)
+    assert operator.xor(bool(depth), adg)
     
     if depth:
         output_path = get_ag_path(name, depth)
@@ -130,7 +156,7 @@ def create_task_files(name, depth=False, adg=False):
     return False
 
 def is_locked(name, depth=False, adg=False):
-    assert operator.xor(depth, adg)
+    assert operator.xor(bool(depth), adg)
     return os.path.isfile(get_ag_lockfile(name, depth, adg))
 
 def get_ag_tasks(name):
@@ -143,9 +169,9 @@ def get_ag_tasks(name):
         if directory.startswith('out_'):
             depth = int(directory.split('_')[1])
             if is_locked(name, depth):
-                locked_depths.append(depth)
+                locked_depths.append(str(depth))
             else:
-                done_depths.append(depth)
+                done_depths.append(str(depth))
         elif directory == 'adg':
             if is_locked(name, adg=True):
                 adg = 1
@@ -163,7 +189,7 @@ def get_ag_overview():
 
 def new_generation_task(name, depth=False, adg=False):
     # Check that parameters exist.
-    if not operator.xor(depth, adg):
+    if not operator.xor(bool(depth), adg):
         return ('must have only one of (depth, adg)', 400)
     # AG exists on path:
     if ag_exists(name, depth, adg):
@@ -192,7 +218,7 @@ def get_ag(name, depth=None, adg=False):
     """
     Returns the NetworkX graph object for the specified attack graph.
     """
-    assert operator.xor(depth, adg)
+    assert operator.xor(bool(depth), adg)
     assert ag_exists(name, depth, adg)
     # TODO: if name in running_futures, etc etc etc...
     ag = nx.read_gpickle(os.path.join(get_ag_path(name, depth, adg), 'ag.pickle'))
@@ -281,4 +307,24 @@ def get_render(name,depth=False, accept_type='text/vnd.graphviz'):
     out_fun = out_types[accept_type] # output function
     outstring = StringIO() # Dummy up a file-like string
     out_fun(ag, outstring) # Call our output function on it
+    return outstring
+
+def get_initial_state_graph_png(name):
+    nmfile = get_scenario_paths(name)['nm']
+    initial_graph = ag_generator.viz_nm(nmfile) # NX object
+    
+    outstring = StringIO()
+    
+    render_path = os.path.join(get_ag_path(name), 'initial.png')
+    if not os.path.isfile(render_path):
+        # Generate the PNG
+        print nx
+        print nx.to_pydot
+        pd = nx.to_pydot(initial_graph)
+        pd.write_png(render_path)
+    # This might be stupid:
+    with open(render_path, 'rb') as rendered:
+        outstring.write(rendered.read())
+        outstring.flush()    
+
     return outstring

@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}{{ super() }} : <a href="{{ url_for('web_scenario_detail', name=name) }}">{{ name }}</a>{% endblock %}
+{% block ltitle %}Instructions {% endblock %}

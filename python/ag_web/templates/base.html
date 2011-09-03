@@ -30,7 +30,7 @@
     </div>
     <div id="headertext" class="span-15">
     <h1>"Web RAVEN" or something...</h1>
-    <h3 class="alt">{% block breadcrumb %}Attack Graph Generator {% endblock %}</h3>
+    <h3 class="alt">{% block breadcrumb %}<a href="{{ url_for('web_landing') }}">Attack Graph Generator</a> {% endblock %}</h3>
     </div>
     <hr />
     {% block body %}
@@ -44,6 +44,8 @@
       {% block right %}
       {% endblock %}
       </div>
+    {% endblock %}
+    {% block underbody %}
     {% endblock %}
   </div>
 </body>

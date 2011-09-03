@@ -6,6 +6,8 @@ from flask import request, make_response, render_template, url_for, flash
 from flask import redirect
 import flask
 
+import ag_generator
+
 from ag_web import app, forms
 from ag_web.util import *
 
@@ -23,7 +25,33 @@ def web_scenario_detail(name):
     Landing page (scenario listing).
     """
     ag = get_ag_overview()[name]
-    return render_template('scenario.html', name=name, ag=ag)
+    paths = get_scenario_paths(name)
+    with open(paths['nm']) as nm_file, open(paths['xp']) as xp_file:
+        nm = nm_file.read()
+        xp = xp_file.read()
+    return render_template('scenario.html', name=name, ag=ag,
+                           nm=nm, xp=xp)
+
+@app.route('/interactive/attackgraphs/<name>/initial.png', methods=['GET',])
+def web_scenario_initialstate(name):
+    """
+    Landing page (scenario listing).
+    """
+    outstring = get_initial_state_graph_png(name)
+    mime = "image/png"
+    resp = make_response(outstring.getvalue(), 200) # Response
+    resp.mimetype=mime # Correct the MIME according to out_tuple
+    resp.implicit_sequence_conversion=False
+    resp.data = outstring.getvalue()
+    return resp
+    
+    ag = get_ag_overview()[name]
+    paths = get_scenario_paths(name)
+    with open(paths['nm']) as nm_file, open(paths['xp']) as xp_file:
+        nm = nm_file.read()
+        xp = xp_file.read()
+    return render_template('scenario.html', name=name, ag=ag,
+                           nm=nm, xp=xp)
 
 @app.route('/interactive/attackgraphs/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
 def web_task_download(name, graph_type, fn, ext):
@@ -33,9 +61,9 @@ def web_task_download(name, graph_type, fn, ext):
     # filename is formatted {'name_adg.EXT' | 'name_ag_DEPTH.EXT'}
     # Ensure filename is well-formed:
     assert name in get_ag_names()
-    assert fn.split('_')[0] == name
+    # assert fn.split('_')[0] == name
     assert graph_type in ('ag', 'adg')
-    assert fn.split('_')[1] == graph_type
+    # assert fn.split('_')[1] == graph_type
     assert ext.lower() in ('dot', 'pdf', 'xml', 'png')
     
     # Ensure that the request attack graph has been generated:
@@ -43,7 +71,7 @@ def web_task_download(name, graph_type, fn, ext):
     depth = False
     if not adg: # Assert the ASG state depth is DONE:
         depth = int(fn.split('_')[-1])
-        assert depth in get_ag_tasks(name)[0]
+        assert str(depth) in get_ag_tasks(name)[0]
     if adg: # Assert ADG is DONE:
         assert get_ag_tasks(name)[2] == 2
     
@@ -106,7 +134,64 @@ def web_create_generation_task(name):
         
         if not ret:
             flash('Submitted!')
-            return redirect(url_for('web_landing'))
+            return redirect(url_for('web_scenario_detail', name=name))
         else:
             return make_response(*ret)
     return render_template('task_form.html', form=form, name=name)
+
+@app.route('/interactive/attackgraphs/<name>/delete/', methods=['GET','POST'])
+def web_scenario_delete(name):
+    """
+    Attack graph task restart.
+    """
+    form = forms.ConfirmForm(request.form)
+    # TODO: better error handling.
+    if form.validate_on_submit():
+        delete_scenario(name)
+        flash('Submitted!')
+        return redirect(url_for('web_landing'))
+    return render_template('scenario_delete.html', form=form, name=name)
+
+@app.route('/interactive/attackgraphs/<name>/<task>/restart/', methods=['GET','POST'])
+def web_task_restart(name, task):
+    """
+    Attack graph task restart.
+    """
+    depth = False
+    adg = (task == 'adg')
+    
+    # TODO: validate
+    if not adg:
+        depth = int(task)
+    
+    form = forms.ConfirmForm(request.form)
+    # TODO: better error handling.
+    if form.validate_on_submit():
+        delete_task(name, depth=depth, adg=adg)
+        ret = new_generation_task(name, depth=depth, adg=adg)
+        if not ret:
+            flash('Submitted!')
+            return redirect(url_for('web_scenario_detail', name=name))
+        else:
+            return make_response(*ret)
+    return render_template('task_restart.html', form=form, name=name)
+
+@app.route('/interactive/attackgraphs/<name>/<task>/delete/', methods=['GET','POST'])
+def web_task_delete(name, task):
+    """
+    Attack graph task delete.
+    """
+    depth = False
+    adg = (task == 'adg')
+    
+    # TODO: validate
+    if not adg:
+        depth = int(task)
+    
+    form = forms.ConfirmForm(request.form)
+    # TODO: better error handling.
+    if form.validate_on_submit():
+        delete_task(name, depth=depth, adg=adg)
+        flash('Submitted!')
+        return redirect(url_for('web_scenario_detail', name=name))
+    return render_template('task_delete.html', form=form, name=name)

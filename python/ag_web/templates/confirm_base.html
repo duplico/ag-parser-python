@@ -10,25 +10,19 @@
   </dd>
 {% endmacro %}
 
-{% block breadcrumb %}{{ super() }} : Generation Task Creation{% endblock %}
-
 {% block ltitle %}Instructions{% endblock %}
 
 {% block left %}
 <p>
-Make generation tasks here.
+Regenerate this task?
 </p>
 {% endblock %}
 
-{% block rtitle %}Generation Task Specification{% endblock %}
+{% block rtitle %}Generation Task Restart{% endblock %}
 
 {% block right %}
 <form method="post" action="">
   {{ form.csrf }}
-  <dl>
-  {{ render_field(form.graph_type) }}
-  {{ render_field(form.depth) }}
-  </dl>
-  <input type="submit" value="Submit">
+  <input type="submit" value="{% block button %}Confirm{% endblock %}">
 </form>
 {% endblock %}

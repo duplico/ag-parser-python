@@ -108,7 +108,7 @@ def web_create_scenario():
                                     form.nm.data,
                                     form.xp.data)
         if not ret:
-            flash('Submitted!')
+            flash('Scenario %s created' % (form.name.data,), 'success')
             return redirect(url_for('web_landing'))
         else:
             # Something bad happened that I wasn't expecting.
@@ -133,7 +133,12 @@ def web_create_generation_task(name):
         ret = new_generation_task(name, depth=depth, adg=adg)
         
         if not ret:
-            flash('Submitted!')
+            if adg:
+                task_name = 'attack dependency graph'
+            else:
+                task_name = 'attack state graph of depth %i' % depth
+            if not ret:
+                flash('Queued generation of %s %s' % (name, task_name), 'success')
             return redirect(url_for('web_scenario_detail', name=name))
         else:
             return make_response(*ret)
@@ -148,7 +153,7 @@ def web_scenario_delete(name):
     # TODO: better error handling.
     if form.validate_on_submit():
         delete_scenario(name)
-        flash('Submitted!')
+        flash('Deleted scenario %s' % (name,), 'success')
         return redirect(url_for('web_landing'))
     return render_template('scenario_delete.html', form=form, name=name)
 
@@ -169,8 +174,12 @@ def web_task_restart(name, task):
     if form.validate_on_submit():
         delete_task(name, depth=depth, adg=adg)
         ret = new_generation_task(name, depth=depth, adg=adg)
+        if adg:
+            task_name = 'attack dependency graph'
+        else:
+            task_name = 'attack state graph of depth %i' % depth
         if not ret:
-            flash('Submitted!')
+            flash('Restarted generation of %s %s' % (name, task_name), 'success')
             return redirect(url_for('web_scenario_detail', name=name))
         else:
             return make_response(*ret)
@@ -192,6 +201,10 @@ def web_task_delete(name, task):
     # TODO: better error handling.
     if form.validate_on_submit():
         delete_task(name, depth=depth, adg=adg)
-        flash('Submitted!')
+        if adg:
+            task_name = 'attack dependency graph'
+        else:
+            task_name = 'attack state graph of depth %i' % depth
+        flash('Deleted %s %s' % (name, task_name), 'success')
         return redirect(url_for('web_scenario_detail', name=name))
     return render_template('task_delete.html', form=form, name=name)

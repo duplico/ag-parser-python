@@ -33,6 +33,16 @@
     <h3 class="alt">{% block breadcrumb %}<a href="{{ url_for('web_landing') }}">Attack Graph Generator</a> {% endblock %}</h3>
     </div>
     <hr />
+    {% block flash %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="first span-23 last {{ category }}">{{ message }}</div>
+            <hr />
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    {% endblock %}
     {% block body %}
       <div class="span-8 colborder">
       <h2 class="caps">{% block ltitle %}Left {% endblock %}</h2> <hr />

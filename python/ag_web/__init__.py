@@ -56,5 +56,6 @@ running_futures = dict()
 # Start the web application:
 app = Flask(__name__)
 app.secret_key = '3D193C6B2B50A396393F4D42F90CB65F3475D9948E5D4290C4E48118FD99'
-import ag_web.api_views, ag_web.interactive_views
+import ag_web.api_views
+import ag_web.interactive_views
 import ag_web.util

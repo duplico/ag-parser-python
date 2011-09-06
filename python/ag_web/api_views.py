@@ -61,7 +61,7 @@ def api_create_generation_task(name):
     else:
         return (flask.url_for('api_read_ag', name=name, depth=depth), 202)
 
-def api_base_read(name, depth=False):
+def api_base_read(name, depth=False, aggregate=False):
     out_types = {('text', 'vnd.graphviz') : 'text/vnd.graphviz',
                  ('*', '*') : 'text/vnd.graphviz',
                  ('text', '*') : 'text/vnd.graphviz',
@@ -74,7 +74,7 @@ def api_base_read(name, depth=False):
     if not accept_mime in out_types:
         return make_response('Unsupported MIME type requested.', 406)
     accept_type = out_types[accept_mime]
-    ret = get_render(name, depth, accept_mime)
+    ret = get_render(name, depth, accept_mime, merge=aggregate)
     if type(ret) == tuple: # Error response
         return make_response(*ret)
     
@@ -91,7 +91,7 @@ def api_read_adg(name):
     """
     Defaults to dot format.
     """
-    return api_base_read(name)
+    return api_base_read(name, aggregate='aggregate' in request.args)
 
 @app.route('/v0/attackgraphs/<name>/ag/<int:depth>/', methods=['GET',])
 def api_read_ag(name, depth):

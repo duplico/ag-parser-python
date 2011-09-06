@@ -1,6 +1,6 @@
 from pyparsing import Word, Suppress, Literal, \
     alphanums, oneOf, ZeroOrMore, OneOrMore, Combine, Group, \
-    delimitedList, Regex, Optional, pythonStyleComment
+    delimitedList, Regex, Optional, pythonStyleComment, ParseFatalException
 
 # reserved = ['topology', 'quality', 'network', 'model', 'assets', 'facts', \
 #             'insert', 'delete', 'exploit', 'preconditions', 'postconditions',\
@@ -105,6 +105,28 @@ exploit = Optional(global_dec) + Optional(group_dec) + \
           'postconditions' + colon + \
           Group(OneOrMore(Group(factop)))('postconditions') + dot
 
+def exploit_paramcheck(exploit):
+    valid_parameters = list(exploit.params)
+    offender = False
+    
+    for fact in exploit.preconditions + exploit.postconditions:
+        if fact.type == 'topology':
+            if fact.source not in valid_parameters:
+                offender = fact.source
+                break
+            if fact.dest not in valid_parameters:
+                offender = fact.dest
+                break
+        elif fact.asset not in valid_parameters:
+            offender = fact.asset
+            break
+    if offender:
+        raise ParseFatalException('Unknown asset %s in exploit %s.' % \
+                             (offender, exploit.name))
+    return exploit
+
+exploit.setParseAction(exploit_paramcheck)
+    
 exploits = OneOrMore(Group(exploit))
 exploits.ignore(pythonStyleComment)
 

@@ -1,0 +1,25 @@
+exploit root_server(a, s)=
+    preconditions:
+        topology:a->s,connected_network_web;
+        platform:s,cpe:/a::VulnerableWebServer;
+    postconditions:
+        insert topology:a->s,access_admin;
+.
+
+exploit ch_printer_msg(a, s, p)=
+    preconditions:
+        topology:a->s,access_admin;
+        topology:s<->p,connected_local;
+        platform:p,cpe:/h::printer;
+        quality:s,status=up;
+    postconditions:
+        update quality:p,ready_message=OUT_OF_TONER;
+.
+
+exploit dos_server(a, s)=
+    preconditions:
+        topology:a->s,access_admin;
+        quality:s,status=up;
+    postconditions:
+        update quality:s,status=down;
+.

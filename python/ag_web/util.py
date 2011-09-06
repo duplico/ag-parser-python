@@ -234,8 +234,6 @@ def new_generation_task(name, depth=False, adg=False):
             running_futures[name]['adg'] = task
         else:
             running_futures[name][depth] = task
-        # print running_futures
-        # print task.running()
     
     return False # Success, nothing to report.
     
@@ -262,7 +260,6 @@ def make_attack_graph(name, nmfile, xpfile, depth, adg):
     open(lockfile, 'w').close() # Touch the lockfile
     ag = ag_generator.build_attack_graph(nmfile, xpfile, depth, not adg)
     pickle_file = os.path.join(get_ag_path(name, depth, adg), 'ag.pickle')
-    print pickle_file
     nx.write_gpickle(ag, pickle_file)
     os.remove(lockfile)
     return ag
@@ -348,8 +345,6 @@ def get_initial_state_graph_png(name):
     render_path = os.path.join(get_ag_path(name), 'initial.png')
     if not os.path.isfile(render_path):
         # Generate the PNG
-        print nx
-        print nx.to_pydot
         pd = nx.to_pydot(initial_graph)
         pd.write_png(render_path)
     # This might be stupid:

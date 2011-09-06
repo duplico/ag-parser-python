@@ -1,0 +1,14 @@
+network model = 
+    assets :
+        attacker;
+        server;
+        printer;
+    
+    facts:
+        topology:attacker->server,connected_network_web;
+        topology:server<->printer,connected_local;
+        platform:server,cpe:/a::VulnerableWebServer;
+        platform:printer,cpe:/h::printer;
+        quality:server,status=up;
+        quality:printer,ready_message=READY;
+.

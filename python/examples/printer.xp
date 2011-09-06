@@ -11,7 +11,7 @@ exploit ch_printer_msg(a, s, p)=
         topology:a->s,access_admin;
         topology:s<->p,connected_local;
         platform:p,cpe:/h::printer;
-        quality:server,status=up;
+        quality:s,status=up;
     postconditions:
         update quality:p,ready_message=OUT_OF_TONER;
 .

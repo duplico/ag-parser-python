@@ -265,7 +265,10 @@ def make_attack_graph(name, nmfile, xpfile, depth, adg):
     return ag
 
 def write_pdf(name, depth, ag, filehandle, merged=False):
-    render_path = os.path.join(get_ag_path(name, depth), 'ag.pdf')
+    adg = False
+    if not depth:
+        adg = True
+    render_path = os.path.join(get_ag_path(name, depth, adg=adg), 'ag.pdf')
     if merged:
         render_path += '.merged'
     if not os.path.isfile(render_path):
@@ -278,7 +281,10 @@ def write_pdf(name, depth, ag, filehandle, merged=False):
         filehandle.flush()
 
 def write_png(name, depth, ag, filehandle, merged=False):
-    render_path = os.path.join(get_ag_path(name, depth), 'ag.png')
+    adg = False
+    if not depth:
+        adg = True
+    render_path = os.path.join(get_ag_path(name, depth, adg=adg), 'ag.png')
     if merged:
         render_path += '.merged'
     if not os.path.isfile(render_path):

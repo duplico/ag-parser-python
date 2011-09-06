@@ -510,6 +510,19 @@ def get_pretty_attack(attack, exploit_dict, sep='\n'):
                                                  exploit_string)
         return exploit_string
 
+def get_pretty_fact(fact):
+    print 'prettifying ' + repr(fact)
+    if fact[0] == 'quality':
+        return '%s.%s=%s' %\
+               (fact[1], fact[2], fact[3])
+    elif fact[0] == 'platform':
+        return '%s:cpe:/%s' % (fact[1],':'.join(fact[2]),)
+    elif fact[0] == 'topology':
+        tstring = '%s->%s:%s' % (fact[1], fact[2], fact[3],)
+        if len(fact)==5: # Real
+            tstring += '=%s' % str(fact[4])
+        return tstring
+        
 def get_successor_state(network_state, attacks, exploit_dict):
     """
     Returns the successor state of applying an attack to a network state.
@@ -763,31 +776,60 @@ def generate_dependency_graph(exploit_dict, attack_bindings, initial_state):
         # Preconditions:
         for prec in exploit_dict[binding[0]].preconditions:
             cond_node = get_bound_condition(prec, binding[1])
-            if type(cond_node) == list:
+            if type(cond_node) == list: # Bidirectional topology
                 adg.add_node(cond_node[1], shape='none', adg_type='condition',
-                         adg_holds=nm.matches_fact(cond_node[0]),
-                         adg_reachable=nm.matches_fact(cond_node[0]))
+                         adg_holds=nm.matches_fact(cond_node[1]),
+                         adg_reachable=nm.matches_fact(cond_node[1]),
+                         label=get_pretty_fact(cond_node[1]))
+                adg.add_edge(cond_node[1], src_node)
                 cond_node = cond_node[0]
             adg.add_node(cond_node, shape='none', adg_type='condition',
                          adg_holds=nm.matches_fact(cond_node),
-                         adg_reachable=nm.matches_fact(cond_node))
+                         adg_reachable=nm.matches_fact(cond_node),
+                         label=get_pretty_fact(cond_node))
             adg.add_edge(cond_node, src_node)
         # Postconditions:
         for postc in exploit_dict[binding[0]].postconditions:
             cond_node = get_bound_condition(postc, binding[1])
             if type(cond_node) == list:
                 adg.add_node(cond_node[1], shape='none', adg_type='condition',
-                         adg_holds=nm.matches_fact(cond_node[0]),
-                         adg_reachable=nm.matches_fact(cond_node[0]))
+                         adg_holds=nm.matches_fact(cond_node[1]),
+                         adg_reachable=nm.matches_fact(cond_node[1]),
+                         label=get_pretty_fact(cond_node[1]))
+                adg.add_edge(cond_node[1], src_node)
                 cond_node = cond_node[0]
             adg.add_node(cond_node, shape='none', adg_type='condition',
                          adg_holds=nm.matches_fact(cond_node),
-                         adg_reachable=nm.matches_fact(cond_node))
+                         adg_reachable=nm.matches_fact(cond_node),
+                         label=get_pretty_fact(cond_node))
             adg.add_edge(attack_node, cond_node)
     #adg = prune_dependency_graph(adg)
     adg = prune_reachability(adg)
     return adg
 
+def aggregate_topologies(adg):
+    """
+    Returns a new ADG with bidirectional topologies merged where valid.
+    The returned ADG will not work with any of the analysis methods; this is
+    for display only.
+    """
+    adg = adg.copy()
+    to_merge = []
+    for node in adg.nodes_iter():
+        if node[0] == 'topology':
+            rev = ('topology', node[2], node[1]) + node[3:]
+            if rev in adg.node and \
+                    adg.successors(node) == adg.successors(rev) and \
+                    adg.predecessors(node) == adg.predecessors(rev):
+                if (rev, node) not in to_merge:
+                    to_merge.append((node,rev))
+    for (node, rev) in to_merge:
+        adg.remove_node(rev)
+        new_label_parts = adg.node[node]['label'].split('->')
+        adg.node[node]['label'] = '<->'.join(new_label_parts)
+    return adg
+
+    
 def node_fully_reachable(adg, node):
     # TODO: AND only
     reachable_cond_exp = adg.node[node]['adg_type'] != 'operator' and \

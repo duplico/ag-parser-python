@@ -219,8 +219,8 @@ def make_attack_graph(name, nmfile, xpfile, depth, adg):
 def write_pdf(name, depth, ag, filehandle):
     render_path = os.path.join(get_ag_path(name, depth), 'ag.pdf')
     if not os.path.isfile(render_path):
-        # Generate the PDF
-        pd = nx.to_pydot(ag)
+        # Generate the PDF, merging topologies where possible.
+        pd = nx.to_pydot(ag_generator.aggregate_topologies(ag))
         pd.write_pdf(render_path)
     # This might be stupid:
     with open(render_path, 'rb') as rendered:
@@ -230,10 +230,8 @@ def write_pdf(name, depth, ag, filehandle):
 def write_png(name, depth, ag, filehandle):
     render_path = os.path.join(get_ag_path(name, depth), 'ag.png')
     if not os.path.isfile(render_path):
-        # Generate the PNG
-        print nx
-        print nx.to_pydot
-        pd = nx.to_pydot(ag)
+        # Generate the PNG, merging topologies where possible.
+        pd = nx.to_pydot(ag_generator.aggregate_topologies(ag))
         pd.write_png(render_path)
     # This might be stupid:
     with open(render_path, 'rb') as rendered:

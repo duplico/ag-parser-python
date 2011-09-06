@@ -74,6 +74,8 @@ def web_task_download(name, graph_type, fn, ext):
     # assert fn.split('_')[1] == graph_type
     assert ext.lower() in ('dot', 'pdf', 'xml', 'png')
     
+    aggregate = 'aggregate' in request.args
+    
     # Ensure that the request attack graph has been generated:
     adg = graph_type == 'adg'
     depth = False
@@ -91,7 +93,7 @@ def web_task_download(name, graph_type, fn, ext):
                  'png' : 'image/png',
         }
     mime = out_types[ext.lower()]
-    ret = get_render(name, depth, mime)
+    ret = get_render(name, depth, mime, merge=aggregate)
     if type(ret) == tuple: # Error response
         # TODO
         return make_response(*ret)

@@ -267,29 +267,33 @@ def make_attack_graph(name, nmfile, xpfile, depth, adg):
     os.remove(lockfile)
     return ag
 
-def write_pdf(name, depth, ag, filehandle):
+def write_pdf(name, depth, ag, filehandle, merged=False):
     render_path = os.path.join(get_ag_path(name, depth), 'ag.pdf')
+    if merged:
+        render_path += '.merged'
     if not os.path.isfile(render_path):
-        # Generate the PDF, merging topologies where possible.
-        pd = nx.to_pydot(ag_generator.aggregate_topologies(ag))
+        # Generate the PDF
+        pd = nx.to_pydot(ag)
         pd.write_pdf(render_path)
     # This might be stupid:
     with open(render_path, 'rb') as rendered:
         filehandle.write(rendered.read())
         filehandle.flush()
 
-def write_png(name, depth, ag, filehandle):
+def write_png(name, depth, ag, filehandle, merged=False):
     render_path = os.path.join(get_ag_path(name, depth), 'ag.png')
+    if merged:
+        render_path += '.merged'
     if not os.path.isfile(render_path):
-        # Generate the PNG, merging topologies where possible.
-        pd = nx.to_pydot(ag_generator.aggregate_topologies(ag))
+        # Generate the PNG
+        pd = nx.to_pydot(ag)
         pd.write_png(render_path)
     # This might be stupid:
     with open(render_path, 'rb') as rendered:
         filehandle.write(rendered.read())
         filehandle.flush()
 
-def get_render(name,depth=False, accept_type='text/vnd.graphviz'):
+def get_render(name,depth=False, accept_type='text/vnd.graphviz', merge=False):
     """
     Defaults to dot format.
     """
@@ -317,13 +321,16 @@ def get_render(name,depth=False, accept_type='text/vnd.graphviz'):
     # Exists, and we can return it.
     ag = get_ag(name, depth, adg)
     
+    if merge:
+        ag = ag_generator.aggregate_topologies(ag)
+    
     # Defaults to dot
     out_types = {'text/vnd.graphviz' : nx.write_dot,
                  '*/*' : nx.write_dot,
                  'text/*' : nx.write_dot,
                  'text/xml' : nx.write_graphml, # UTF8=>text
-                 'application/pdf' : lambda a,b: write_pdf(name, depth, a, b),
-                 'image/png' : lambda a,b: write_png(name,depth,a,b),
+                 'application/pdf' : lambda a,b: write_pdf(name, depth, a, b, merge),
+                 'image/png' : lambda a,b: write_png(name,depth,a,b, merge),
         }
     # This just splits and strips the MIME into a 2-tuple
     accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))

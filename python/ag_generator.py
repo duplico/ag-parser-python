@@ -763,7 +763,7 @@ def generate_dependency_graph(exploit_dict, attack_bindings, initial_state):
         attack_node = get_pretty_attack(binding, exploit_dict, sep=' ')
         src_node = attack_node
         adg.add_node(attack_node, shape='box', adg_type='attack',
-                     adg_reachable=False)
+                     adg_reachable=False, label=attack_node)
         # AND its preconditions if there are multiples:
         if len(exploit_dict[binding[0]].preconditions) > 1:
             and_node = 'and%i' % and_index

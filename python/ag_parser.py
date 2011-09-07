@@ -94,6 +94,29 @@ networkmodel = Combine(Literal('network') + Literal('model'), joinString=' ', \
                dot
 networkmodel.ignore(pythonStyleComment)
 
+def networkmodel_paramcheck(networkmodel):
+    valid_assets = list(networkmodel.assets)
+    print valid_assets
+    offender = False
+    
+    for fact in networkmodel.facts:
+        if fact.type == 'topology':
+            if fact.source not in valid_assets:
+                offender = fact.source
+                break
+            if fact.dest not in valid_assets:
+                offender = fact.dest
+                break
+        elif fact.asset not in valid_assets:
+            offender = fact.asset
+            break
+    if offender:
+        raise ParseFatalException('Undeclared asset "%s".' % \
+                             (offender,))
+    return networkmodel
+
+networkmodel.addParseAction(networkmodel_paramcheck)
+
 # Parser for exploit patterns
 
 factop = oneOf('insert delete update')('operation') + assignfact

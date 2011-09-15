@@ -6,12 +6,18 @@ from flask import request, make_response, render_template, url_for, flash
 from flask import redirect
 import flask
 
+from flaskext.bcrypt import generate_password_hash, check_password_hash
+
+from flaskext.login import login_user, login_required, logout_user
+
 import ag_generator
 
-from ag_web import app, forms
+from ag_web import app, forms, couchdb_manager
 from ag_web.util import *
+from ag_web import models
 
 @app.route('/', methods=['GET',])
+@login_required
 def landing_redirect():
     """
     Redirects to landing page.
@@ -20,6 +26,7 @@ def landing_redirect():
     return redirect(url_for('web_landing'))
 
 @app.route('/interactive/', methods=['GET',])
+@login_required
 def web_landing():
     """
     Landing page (scenario listing).
@@ -27,7 +34,53 @@ def web_landing():
     ags = get_ag_overview()
     return render_template('landing.html', ag_table=ags)
 
+@app.route('/interactive/auth/login/', methods=['GET', 'POST',])
+def login():
+    form = forms.LoginForm()
+    if form.validate_on_submit():
+        username = form.username.data
+        password_raw = form.password.data
+        user = models.User.load(username)
+        if not user or not user.matches_password(password_raw):
+            flash("Unknown user or non-matching password.", 'error')
+            return render_template("login.html", form=form)
+        # login and validate the user...
+        login_user(user)
+        flash("Logged in successfully.", 'success')
+        return redirect(request.args.get("next") or url_for("web_landing"))
+    return render_template("login.html", form=form)
+
+@app.route('/interactive/auth/register/', methods=['GET', 'POST',])
+def register():
+    form = forms.RegisterForm()
+    if form.validate_on_submit():
+        username = form.username.data
+        password_raw = form.password.data
+        email = form.email.data
+        user = models.User.load(username)
+        if user:
+            flash("User already exists by that name.", 'error')
+            return render_template("register.html", form=form)
+        password_hash = unicode(generate_password_hash(password_raw))
+        user = models.User(username=username, pw_hash=password_hash,
+                           email_address=email, accessible_scenarios=[])
+        user.id = username
+        user.store()
+        couchdb_manager.sync(app)
+        ## login and validate the user...
+        login_user(user)
+        flash("User created successfully.", 'success')
+        return redirect(request.args.get("next") or url_for("web_landing"))
+    return render_template("register.html", form=form)
+
+@app.route("/interactive/auth/logout/")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 @app.route('/interactive/attackgraphs/<name>/', methods=['GET',])
+@login_required
 def web_scenario_detail(name):
     """
     Landing page (scenario listing).
@@ -41,6 +94,7 @@ def web_scenario_detail(name):
                            nm=nm, xp=xp)
 
 @app.route('/interactive/attackgraphs/<name>/initial.png', methods=['GET',])
+@login_required
 def web_scenario_initialstate(name):
     """
     Landing page (scenario listing).
@@ -62,6 +116,7 @@ def web_scenario_initialstate(name):
                            nm=nm, xp=xp)
 
 @app.route('/interactive/attackgraphs/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
+@login_required
 def web_task_download(name, graph_type, fn, ext):
     """
     Attack graph download.
@@ -107,6 +162,7 @@ def web_task_download(name, graph_type, fn, ext):
     return resp
     
 @app.route('/interactive/attackgraphs/', methods=['GET', 'POST'])
+@login_required
 def web_create_scenario():
     """
     Scenario creation form page.
@@ -128,6 +184,7 @@ def web_create_scenario():
     return render_template('scenario_form.html', form=form)
 
 @app.route('/interactive/attackgraphs/<name>/add/', methods=['GET', 'POST'])
+@login_required
 def web_create_generation_task(name):
     """
     Generation task creation form page.
@@ -157,6 +214,7 @@ def web_create_generation_task(name):
     return render_template('task_form.html', form=form, name=name)
 
 @app.route('/interactive/attackgraphs/<name>/delete/', methods=['GET','POST'])
+@login_required
 def web_scenario_delete(name):
     """
     Attack graph task restart.
@@ -170,6 +228,7 @@ def web_scenario_delete(name):
     return render_template('scenario_delete.html', form=form, name=name)
 
 @app.route('/interactive/attackgraphs/<name>/<task>/restart/', methods=['GET','POST'])
+@login_required
 def web_task_restart(name, task):
     """
     Attack graph task restart.
@@ -200,6 +259,7 @@ def web_task_restart(name, task):
                            task=task_name)
 
 @app.route('/interactive/attackgraphs/<name>/<task>/delete/', methods=['GET','POST'])
+@login_required
 def web_task_delete(name, task):
     """
     Attack graph task delete.

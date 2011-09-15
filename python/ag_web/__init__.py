@@ -46,6 +46,7 @@ from concurrent import futures
 from flask import Flask
 from flaskext.couchdb import CouchDBManager
 from flaskext.bcrypt import bcrypt_init
+from flaskext.login import LoginManager
 
 app = Flask(__name__)
 
@@ -62,11 +63,15 @@ executor = futures.ThreadPoolExecutor(max_workers=app.config['MAX_WORKERS'])
 running_futures = dict()
 
 # Set up flask specific stuff:
-manager = CouchDBManager(auto_sync=False)
+login_manager = LoginManager()
+couchdb_manager = CouchDBManager(auto_sync=False)
 bcrypt_init(app)
 app.secret_key = '3D193C6B2B50A396393F4D42F90CB65F3475D9948E5D4290C4E48118FD99'
-manager.setup(app)
+couchdb_manager.setup(app)
+login_manager.setup_app(app)
+login_manager.login_view = 'login'
 
+import ag_web.models
 import ag_web.api_views
 import ag_web.interactive_views
 import ag_web.util

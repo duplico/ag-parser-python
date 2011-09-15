@@ -1,4 +1,5 @@
 from flaskext.wtf import Form, BooleanField, TextField, validators
+from flaskext.wtf import PasswordField
 from flaskext.wtf import TextAreaField, RadioField, SelectField, ValidationError
 import ag_parser
 from ag_web.util import *
@@ -70,6 +71,22 @@ class GenerationTaskForm(Form):
     depth = TextField('Maximum generation depth (state graph only)', 
                       [EmptyIfFieldNotMatches('graph_type', 'sg'),
                        validators.NumberRange(min=1)])
+
+class RegisterForm(Form):
+    username = TextField('Username', [validators.Required(),
+                                      validators.Regexp(r'^\w+$')])
+    email = TextField('E-mail address', [validators.Required(),
+                                         validators.Email()])
+    password = PasswordField('Password',
+                             [validators.Required(),
+                              validators.EqualTo('confirm',
+                                                 message='Passwords must match.')])
+    confirm  = PasswordField('Repeat Password')
+
+class LoginForm(Form):
+    username = TextField('Username', [validators.Required(),
+                                      validators.Regexp(r'^\w+$')])
+    password = PasswordField('Password', [validators.Required()])
 
 class ConfirmForm(Form):
     """

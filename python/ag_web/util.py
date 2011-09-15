@@ -132,12 +132,12 @@ def get_ag_definition(name, username=DEFAULT_USER):
     
 def delete_scenario(name, username=DEFAULT_USER):
     directory = get_ag_path(name, username=username)
-    if name in running_futures: # TODO: futures
-        for ag in running_futures[name]:
-            future = running_futures[name][ag]
+    if username in running_futures and name in running_futures[username]:
+        for ag in running_futures[username][name]:
+            future = running_futures[username][name][ag]
             if future.running():
                 assert future.cancel()
-        del running_futures[name]
+        del running_futures[username][name]
     shutil.rmtree(directory)
 
 # Task management:
@@ -145,14 +145,15 @@ def delete_scenario(name, username=DEFAULT_USER):
 def delete_task(name, depth=False, adg=False, username=DEFAULT_USER):
     assert operator.xor(bool(depth), adg)
     directory = get_ag_path(name, depth=depth, adg=adg, username=username)
-    test = 'adg'
+    task = 'adg'
     if not adg:
-        test = depth
-    if name in running_futures and test in running_futures[name]:
-        future = running_futures[name][test]
+        task = depth
+    if username in running_futures and name in running_futures[username] and \
+            task in running_futures[username][name]:
+        future = running_futures[username][name][task]
         if future.running():
             assert future.cancel()
-        del running_futures[name]
+        del running_futures[username][name][task]
     shutil.rmtree(directory)
 
 def create_task_files(name, depth=False, adg=False, username=DEFAULT_USER):
@@ -224,12 +225,14 @@ def new_generation_task(name, depth=False, adg=False, username=DEFAULT_USER):
         paths = get_scenario_paths(name, username=username)
         task = executor.submit(make_attack_graph, name, paths['nm'], 
                                paths['xp'], depth, adg, username=username)
-        if name not in running_futures:
-            running_futures[name] = dict()
+        if username not in running_futures:
+            running_futures[username] = dict()
+        if name not in running_futures[username]:
+            running_futures[username][name] = dict()
         if adg:
-            running_futures[name]['adg'] = task
+            running_futures[username][name]['adg'] = task
         else:
-            running_futures[name][depth] = task
+            running_futures[username][name][depth] = task
     
     return False # Success, nothing to report.
     
@@ -318,7 +321,9 @@ def get_render(name, depth=False, accept_type='text/vnd.graphviz', merge=False,
     
     # Check for lock
     if is_locked(name, depth, adg, username=username):
-        if name not in running_futures or depth not in running_futures[name]:
+        if username not in running_futures or \
+                name not in running_futures[username] or \
+                depth not in running_futures[username][name]:
             shutil.rmtree(get_ag_path(name, depth, adg, username=username)) # TODO?
             return ('internal error, resubmit generation request', 500)
         else:

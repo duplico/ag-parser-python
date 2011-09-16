@@ -9,6 +9,7 @@ import flask
 from flaskext.bcrypt import generate_password_hash, check_password_hash
 
 from flaskext.login import login_user, login_required, logout_user
+from flaskext.login import current_user
 
 import ag_generator
 
@@ -31,7 +32,7 @@ def web_landing():
     """
     Landing page (scenario listing).
     """
-    ags = get_ag_overview()
+    ags = get_ag_overview(username=current_user.username)
     return render_template('landing.html', ag_table=ags)
 
 @app.route('/interactive/auth/login/', methods=['GET', 'POST',])
@@ -85,8 +86,8 @@ def web_scenario_detail(name):
     """
     Landing page (scenario listing).
     """
-    ag = get_ag_overview()[name]
-    paths = get_scenario_paths(name)
+    ag = get_ag_overview(username=current_user.username)[name]
+    paths = get_scenario_paths(name, username=current_user.username)
     with open(paths['nm']) as nm_file, open(paths['xp']) as xp_file:
         nm = nm_file.read()
         xp = xp_file.read()
@@ -99,7 +100,8 @@ def web_scenario_initialstate(name):
     """
     Landing page (scenario listing).
     """
-    outstring = get_initial_state_graph_png(name)
+    outstring = get_initial_state_graph_png(name, 
+                                            username=current_user.username)
     mime = "image/png"
     resp = make_response(outstring.getvalue(), 200) # Response
     resp.mimetype=mime # Correct the MIME according to out_tuple
@@ -107,8 +109,8 @@ def web_scenario_initialstate(name):
     resp.data = outstring.getvalue()
     return resp
     
-    ag = get_ag_overview()[name]
-    paths = get_scenario_paths(name)
+    ag = get_ag_overview(username=current_user.username)[name]
+    paths = get_scenario_paths(name, username=current_user.username)
     with open(paths['nm']) as nm_file, open(paths['xp']) as xp_file:
         nm = nm_file.read()
         xp = xp_file.read()
@@ -123,7 +125,7 @@ def web_task_download(name, graph_type, fn, ext):
     """
     # filename is formatted {'name_adg.EXT' | 'name_ag_DEPTH.EXT'}
     # Ensure filename is well-formed:
-    assert name in get_ag_names()
+    assert name in get_ag_names(username=current_user.username)
     # assert fn.split('_')[0] == name
     assert graph_type in ('ag', 'adg')
     # assert fn.split('_')[1] == graph_type
@@ -136,9 +138,9 @@ def web_task_download(name, graph_type, fn, ext):
     depth = False
     if not adg: # Assert the ASG state depth is DONE:
         depth = int(fn.split('_')[-1])
-        assert str(depth) in get_ag_tasks(name)[0]
+        assert str(depth) in get_ag_tasks(name, username=current_user.username)[0]
     if adg: # Assert ADG is DONE:
-        assert get_ag_tasks(name)[2] == 2
+        assert get_ag_tasks(name, username=current_user.username)[2] == 2
     
     # Get the file:
     
@@ -148,7 +150,8 @@ def web_task_download(name, graph_type, fn, ext):
                  'png' : 'image/png',
         }
     mime = out_types[ext.lower()]
-    ret = get_render(name, depth, mime, merge=aggregate)
+    ret = get_render(name, depth, mime, merge=aggregate, 
+                     username=current_user.username)
     if type(ret) == tuple: # Error response
         # TODO
         return make_response(*ret)
@@ -172,7 +175,8 @@ def web_create_scenario():
         # Create the new scenario:
         ret = create_scenario_files(form.name.data,
                                     form.nm.data,
-                                    form.xp.data)
+                                    form.xp.data, 
+                                    username=current_user.username)
         if not ret:
             flash('Scenario %s created' % (form.name.data,), 'success')
             return redirect(url_for('web_landing'))
@@ -182,7 +186,7 @@ def web_create_scenario():
             flash(ret[0], 'error')
             return render_template('scenario_form.html', form=form)
     return render_template('scenario_form.html', form=form)
-
+### I AM HERE. ##
 @app.route('/interactive/attackgraphs/<name>/add/', methods=['GET', 'POST'])
 @login_required
 def web_create_generation_task(name):
@@ -198,7 +202,8 @@ def web_create_generation_task(name):
         else:
             depth = False
         adg = form.graph_type.data == 'adg'        
-        ret = new_generation_task(name, depth=depth, adg=adg)
+        ret = new_generation_task(name, depth=depth, adg=adg,
+                                  username=current_user.username)
         
         if not ret:
             if adg:
@@ -222,7 +227,7 @@ def web_scenario_delete(name):
     form = forms.ConfirmForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
-        delete_scenario(name)
+        delete_scenario(name, username=current_user.username)
         flash('Deleted scenario %s' % (name,), 'success')
         return redirect(url_for('web_landing'))
     return render_template('scenario_delete.html', form=form, name=name)
@@ -248,8 +253,10 @@ def web_task_restart(name, task):
     form = forms.ConfirmForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
-        delete_task(name, depth=depth, adg=adg)
-        ret = new_generation_task(name, depth=depth, adg=adg)
+        delete_task(name, depth=depth, adg=adg, 
+                    username=current_user.username)
+        ret = new_generation_task(name, depth=depth, adg=adg,
+                                  username=current_user.username)
         if not ret:
             flash('Restarted generation of %s %s' % (name, task_name), 'success')
             return redirect(url_for('web_scenario_detail', name=name))
@@ -278,7 +285,7 @@ def web_task_delete(name, task):
     form = forms.ConfirmForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
-        delete_task(name, depth=depth, adg=adg)
+        delete_task(name, depth=depth, adg=adg, username=current_user.username)
         flash('Deleted %s %s' % (name, task_name), 'success')
         return redirect(url_for('web_scenario_detail', name=name))
     return render_template('task_delete.html', form=form, name=name,

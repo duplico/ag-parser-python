@@ -342,8 +342,11 @@ def get_render(name, depth=False, accept_type='text/vnd.graphviz', merge=False,
                  '*/*' : nx.write_dot,
                  'text/*' : nx.write_dot,
                  'text/xml' : nx.write_graphml, # UTF8=>text
-                 'application/pdf' : lambda a,b: write_pdf(name, depth, a, b, merge),
-                 'image/png' : lambda a,b: write_png(name,depth,a,b, merge),
+                 'application/pdf' : lambda a,b: write_pdf(name, depth, a, b, 
+                                                           merge, 
+                                                           username=username),
+                 'image/png' : lambda a,b: write_png(name,depth,a,b, merge, 
+                                                     username=username),
         }
     # This just splits and strips the MIME into a 2-tuple
     accept_mime = tuple(map(lambda a: a.strip().lower(), accept_type.split('/')))

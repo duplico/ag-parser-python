@@ -39,7 +39,7 @@
     <h3 class="alt">{% block breadcrumb %}<a class="alt" href="{{ url_for('web_landing') }}">Attack Graph Generator</a> {% endblock %}</h3>
     </div>    
     <div id="regbar" class="span-4 last">
-    {% if not current_user.is_anonymous %}
+    {% if not current_user.is_anonymous() %}
         Logged in as {{ current_user.username }} <br />
         <a href="{{  url_for('logout') }}">Log out</a>
         <hr />

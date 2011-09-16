@@ -50,6 +50,16 @@ from flaskext.login import LoginManager
 
 app = Flask(__name__)
 
+app.debug = True
+
+# Config
+try:
+    from ag_web_settings import config as local_config
+    app.config.update(local_config)
+except ImportError:
+    print 'Failed to import local configuration.'
+
+
 app.config.setdefault('MAX_WORKERS', 5)
 # DO NOT SERVE FROM THE FOLLOWING PATH! TODO: mode xx0
 app.config.setdefault('AG_DATA_PATH', 'ag_web/webdata')

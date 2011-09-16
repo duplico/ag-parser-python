@@ -80,7 +80,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-@app.route('/interactive/attackgraphs/<name>/', methods=['GET',])
+@app.route('/interactive/attackgraphs/c/<name>/', methods=['GET',])
 @login_required
 def web_scenario_detail(name):
     """
@@ -94,7 +94,7 @@ def web_scenario_detail(name):
     return render_template('scenario.html', name=name, ag=ag,
                            nm=nm, xp=xp)
 
-@app.route('/interactive/attackgraphs/<name>/initial.png', methods=['GET',])
+@app.route('/interactive/attackgraphs/c/<name>/initial.png', methods=['GET',])
 @login_required
 def web_scenario_initialstate(name):
     """
@@ -117,7 +117,7 @@ def web_scenario_initialstate(name):
     return render_template('scenario.html', name=name, ag=ag,
                            nm=nm, xp=xp)
 
-@app.route('/interactive/attackgraphs/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
+@app.route('/interactive/attackgraphs/c/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
 @login_required
 def web_task_download(name, graph_type, fn, ext):
     """
@@ -187,7 +187,7 @@ def web_create_scenario():
             return render_template('scenario_form.html', form=form)
     return render_template('scenario_form.html', form=form)
 ### I AM HERE. ##
-@app.route('/interactive/attackgraphs/<name>/add/', methods=['GET', 'POST'])
+@app.route('/interactive/attackgraphs/c/<name>/add/', methods=['GET', 'POST'])
 @login_required
 def web_create_generation_task(name):
     """
@@ -218,7 +218,7 @@ def web_create_generation_task(name):
             return render_template('task_form.html', form=form, name=name)
     return render_template('task_form.html', form=form, name=name)
 
-@app.route('/interactive/attackgraphs/<name>/delete/', methods=['GET','POST'])
+@app.route('/interactive/attackgraphs/c/<name>/delete/', methods=['GET','POST'])
 @login_required
 def web_scenario_delete(name):
     """
@@ -232,7 +232,7 @@ def web_scenario_delete(name):
         return redirect(url_for('web_landing'))
     return render_template('scenario_delete.html', form=form, name=name)
 
-@app.route('/interactive/attackgraphs/<name>/<task>/restart/', methods=['GET','POST'])
+@app.route('/interactive/attackgraphs/c/<name>/<task>/restart/', methods=['GET','POST'])
 @login_required
 def web_task_restart(name, task):
     """
@@ -265,7 +265,7 @@ def web_task_restart(name, task):
     return render_template('task_restart.html', form=form, name=name,
                            task=task_name)
 
-@app.route('/interactive/attackgraphs/<name>/<task>/delete/', methods=['GET','POST'])
+@app.route('/interactive/attackgraphs/c/<name>/<task>/delete/', methods=['GET','POST'])
 @login_required
 def web_task_delete(name, task):
     """

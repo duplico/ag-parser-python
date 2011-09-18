@@ -9,12 +9,15 @@ import networkx as nx
 import ag_generator
 import ag_parser
 
-from ag_web import executor, running_futures, app
+from ag_web import executor, running_futures, app, models
 
 from functools import wraps
 from flask import request, Response
 
 DEFAULT_USER = 'isec'
+
+def get_owned_ag_name(owner, name):
+    return u'%s/%s' % (owner, name)
 
 def requires_auth(f):
     @wraps(f)
@@ -207,6 +210,19 @@ def get_ag_overview(username=DEFAULT_USER):
         ags[ag] = get_ag_tasks(ag, username=username)
     return ags
 
+def get_shared_ag_overview(username=DEFAULT_USER):
+    user = models.User.load(username)
+    assert user != None
+    print bool(user.accessible_scenarios)
+    if not user.accessible_scenarios:
+        return dict()
+    ags = dict() # ags[owner][name] = tuple(done_depths, locked_depths, adg)
+    shared_ags = [scenario.split('/', 1) for scenario in user.accessible_scenarios]
+    for owner, name in shared_ags:
+        ags.setdefault(owner, dict())
+        ags[owner][name] = get_ag_tasks(name, username=owner)
+    return ags
+    
 # Attack graph generation/rendering:
 
 def new_generation_task(name, depth=False, adg=False, username=DEFAULT_USER):

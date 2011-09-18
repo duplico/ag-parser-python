@@ -32,8 +32,27 @@ def web_landing():
     """
     Landing page (scenario listing).
     """
-    ags = get_ag_overview(username=current_user.username)
-    return render_template('landing.html', ag_table=ags)
+    ags = dict()
+    ags[current_user.username] = get_ag_overview(username=current_user.username)
+    ags.update(get_shared_ag_overview(username=current_user.username))
+    
+    ag_render_list = []
+    prev_owner = ''
+    
+    owner = current_user.username
+    for name in ags[owner]:
+        ag_render_list.append((owner, name, owner!=prev_owner))
+        prev_owner = owner
+    
+    for owner in ags:
+        if owner == current_user.username:
+            continue
+        for name in ags[owner]:
+            ag_render_list.append((owner, name, owner!=prev_owner))
+            prev_owner = owner
+    
+    return render_template('landing.html', ag_table=ags,
+                           ag_render_list=ag_render_list)
 
 @app.route('/interactive/auth/login/', methods=['GET', 'POST',])
 def login():
@@ -80,52 +99,78 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-@app.route('/interactive/attackgraphs/c/<name>/', methods=['GET',])
+
+    
+@app.route('/interactive/attackgraphs/<owner>/<name>/', methods=['GET',])
 @login_required
-def web_scenario_detail(name):
+def web_scenario_detail(owner, name):
     """
     Landing page (scenario listing).
     """
-    ag = get_ag_overview(username=current_user.username)[name]
-    paths = get_scenario_paths(name, username=current_user.username)
+    if owner != current_user.username:
+        scenario_name = get_owned_ag_name(owner, name)
+        if unicode(scenario_name) not in current_user.accessible_scenarios:
+            return make_response('This scenario (if it even exists) has not ' \
+                                 'been shared with you.', 401)
+        owner_username = owner
+    else:
+        owner_username = current_user.username
+    
+    overview = get_ag_overview(username=owner_username)
+    print overview
+    if name in overview:
+        ag = overview[name]
+    else:
+        return make_response('Not found', 404)
+    paths = get_scenario_paths(name, username=owner_username)
     with open(paths['nm']) as nm_file, open(paths['xp']) as xp_file:
         nm = nm_file.read()
         xp = xp_file.read()
     return render_template('scenario.html', name=name, ag=ag,
-                           nm=nm, xp=xp)
+                           nm=nm, xp=xp, owner=owner_username)
 
-@app.route('/interactive/attackgraphs/c/<name>/initial.png', methods=['GET',])
+@app.route('/interactive/attackgraphs/<owner>/<name>/initial.png', methods=['GET',])
 @login_required
-def web_scenario_initialstate(name):
+def web_scenario_initialstate(owner, name):
     """
     Landing page (scenario listing).
     """
+    if owner != current_user.username:
+        scenario_name = get_owned_ag_name(owner, name)
+        if unicode(scenario_name) not in current_user.accessible_scenarios:
+            return make_response('This scenario (if it even exists) has not ' \
+                                 'been shared with you.', 401)
+        owner_username = owner
+    else:
+        owner_username = current_user.username
+    
     outstring = get_initial_state_graph_png(name, 
-                                            username=current_user.username)
+                                            username=owner_username)
     mime = "image/png"
     resp = make_response(outstring.getvalue(), 200) # Response
     resp.mimetype=mime # Correct the MIME according to out_tuple
     resp.implicit_sequence_conversion=False
     resp.data = outstring.getvalue()
     return resp
-    
-    ag = get_ag_overview(username=current_user.username)[name]
-    paths = get_scenario_paths(name, username=current_user.username)
-    with open(paths['nm']) as nm_file, open(paths['xp']) as xp_file:
-        nm = nm_file.read()
-        xp = xp_file.read()
-    return render_template('scenario.html', name=name, ag=ag,
-                           nm=nm, xp=xp)
 
-@app.route('/interactive/attackgraphs/c/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
+@app.route('/interactive/attackgraphs/<owner>/<name>/<graph_type>/<fn>.<ext>', methods=['GET',])
 @login_required
-def web_task_download(name, graph_type, fn, ext):
+def web_task_download(owner, name, graph_type, fn, ext):
     """
     Attack graph download.
     """
+    if owner != current_user.username:
+        scenario_name = get_owned_ag_name(owner, name)
+        if unicode(scenario_name) not in current_user.accessible_scenarios:
+            return make_response('This scenario (if it even exists) has not ' \
+                                 'been shared with you.', 401)
+        owner_username = owner
+    else:
+        owner_username = current_user.username
+        
     # filename is formatted {'name_adg.EXT' | 'name_ag_DEPTH.EXT'}
     # Ensure filename is well-formed:
-    assert name in get_ag_names(username=current_user.username)
+    assert name in get_ag_names(username=owner_username)
     # assert fn.split('_')[0] == name
     assert graph_type in ('ag', 'adg')
     # assert fn.split('_')[1] == graph_type
@@ -138,9 +183,9 @@ def web_task_download(name, graph_type, fn, ext):
     depth = False
     if not adg: # Assert the ASG state depth is DONE:
         depth = int(fn.split('_')[-1])
-        assert str(depth) in get_ag_tasks(name, username=current_user.username)[0]
+        assert str(depth) in get_ag_tasks(name, username=owner_username)[0]
     if adg: # Assert ADG is DONE:
-        assert get_ag_tasks(name, username=current_user.username)[2] == 2
+        assert get_ag_tasks(name, owner_username)[2] == 2
     
     # Get the file:
     
@@ -151,7 +196,7 @@ def web_task_download(name, graph_type, fn, ext):
         }
     mime = out_types[ext.lower()]
     ret = get_render(name, depth, mime, merge=aggregate, 
-                     username=current_user.username)
+                     username=owner_username)
     if type(ret) == tuple: # Error response
         # TODO
         return make_response(*ret)
@@ -186,13 +231,47 @@ def web_create_scenario():
             flash(ret[0], 'error')
             return render_template('scenario_form.html', form=form)
     return render_template('scenario_form.html', form=form)
-### I AM HERE. ##
-@app.route('/interactive/attackgraphs/c/<name>/add/', methods=['GET', 'POST'])
+
+@app.route('/interactive/attackgraphs/<owner>/<name>/share/', methods=['GET', 'POST'])
 @login_required
-def web_create_generation_task(name):
+def web_scenario_share(owner, name):
+    """
+    Scenario sharing form page.
+    """
+    if owner != current_user.username:
+        return make_response("Can't share scenarios that aren't yours.", 401)
+    
+    owner_username = owner
+    form = forms.ShareForm()
+    
+    if form.validate_on_submit():
+        username = form.username.data
+        destination_user = models.User.load(username)
+        if not username:
+            return make_response('User does not exist. Furthermore, the form ' \
+                                 'validator had a problem.', 500)
+        destination_user.accessible_scenarios.append(get_owned_ag_name(owner, 
+                                                                       name))
+        destination_user.store()
+        couchdb_manager.sync(app)
+        flash('Scenario successfully shared.', 'success')
+        return redirect(url_for('web_scenario_detail', owner=owner, name=name))
+    return render_template('scenario_share.html', form=form, name=name, owner=owner_username)
+    
+@app.route('/interactive/attackgraphs/<owner>/<name>/add/', methods=['GET', 'POST'])
+@login_required
+def web_create_generation_task(owner, name):
     """
     Generation task creation form page.
     """
+    if owner != current_user.username:
+        scenario_name = get_owned_ag_name(owner, name)
+        if unicode(scenario_name) not in current_user.accessible_scenarios:
+            return make_response('This scenario (if it even exists) has not ' \
+                                 'been shared with you.', 401)
+        owner_username = owner
+    else:
+        owner_username = current_user.username
     form = forms.GenerationTaskForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
@@ -203,7 +282,7 @@ def web_create_generation_task(name):
             depth = False
         adg = form.graph_type.data == 'adg'        
         ret = new_generation_task(name, depth=depth, adg=adg,
-                                  username=current_user.username)
+                                  username=owner_username)
         
         if not ret:
             if adg:
@@ -212,32 +291,47 @@ def web_create_generation_task(name):
                 task_name = 'attack state graph of depth %i' % depth
             if not ret:
                 flash('Queued generation of %s %s' % (name, task_name), 'success')
-            return redirect(url_for('web_scenario_detail', name=name))
+            return redirect(url_for('web_scenario_detail', owner=owner, name=name)) # TODO
         else:
             flash(ret[0], 'error')
             return render_template('task_form.html', form=form, name=name)
-    return render_template('task_form.html', form=form, name=name)
+    return render_template('task_form.html', form=form, name=name, owner=owner_username)
 
-@app.route('/interactive/attackgraphs/c/<name>/delete/', methods=['GET','POST'])
+@app.route('/interactive/attackgraphs/<owner>/<name>/delete/', methods=['GET','POST'])
 @login_required
-def web_scenario_delete(name):
+def web_scenario_delete(owner, name):
     """
     Attack graph task restart.
     """
+    if owner != current_user.username:
+        return make_response('You may not delete scenarios that do not belong' \
+                             'to you.', 401)
+    else:
+        owner_username = current_user.username
+        
     form = forms.ConfirmForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
-        delete_scenario(name, username=current_user.username)
+        delete_scenario(name, username=owner_username)
         flash('Deleted scenario %s' % (name,), 'success')
         return redirect(url_for('web_landing'))
-    return render_template('scenario_delete.html', form=form, name=name)
+    return render_template('scenario_delete.html', form=form, name=name, owner=owner_username)
 
-@app.route('/interactive/attackgraphs/c/<name>/<task>/restart/', methods=['GET','POST'])
+@app.route('/interactive/attackgraphs/<owner>/<name>/<task>/restart/', methods=['GET','POST'])
 @login_required
-def web_task_restart(name, task):
+def web_task_restart(owner, name, task):
     """
     Attack graph task restart.
     """
+    if owner != current_user.username:
+        scenario_name = get_owned_ag_name(owner, name)
+        if unicode(scenario_name) not in current_user.accessible_scenarios:
+            return make_response('This scenario (if it even exists) has not ' \
+                                 'been shared with you.', 401)
+        owner_username = owner
+    else:
+        owner_username = current_user.username
+        
     depth = False
     adg = (task == 'adg')
     
@@ -254,23 +348,32 @@ def web_task_restart(name, task):
     # TODO: better error handling.
     if form.validate_on_submit():
         delete_task(name, depth=depth, adg=adg, 
-                    username=current_user.username)
+                    username=owner_username)
         ret = new_generation_task(name, depth=depth, adg=adg,
-                                  username=current_user.username)
+                                  username=owner_username)
         if not ret:
             flash('Restarted generation of %s %s' % (name, task_name), 'success')
-            return redirect(url_for('web_scenario_detail', name=name))
+            return redirect(url_for('web_scenario_detail', owner=owner, name=name))
         else:
             return make_response(*ret)
     return render_template('task_restart.html', form=form, name=name,
-                           task=task_name)
+                           task=task_name, owner=owner_username)
 
-@app.route('/interactive/attackgraphs/c/<name>/<task>/delete/', methods=['GET','POST'])
+@app.route('/interactive/attackgraphs/<owner>/<name>/<task>/delete/', methods=['GET','POST'])
 @login_required
-def web_task_delete(name, task):
+def web_task_delete(owner, name, task):
     """
     Attack graph task delete.
     """
+    if owner != current_user.username:
+        scenario_name = get_owned_ag_name(owner, name)
+        if unicode(scenario_name) not in current_user.accessible_scenarios:
+            return make_response('This scenario (if it even exists) has not ' \
+                                 'been shared with you.', 401)
+        owner_username = owner
+    else:
+        owner_username = current_user.username
+        
     depth = False
     adg = (task == 'adg')
     
@@ -285,8 +388,8 @@ def web_task_delete(name, task):
     form = forms.ConfirmForm(request.form)
     # TODO: better error handling.
     if form.validate_on_submit():
-        delete_task(name, depth=depth, adg=adg, username=current_user.username)
+        delete_task(name, depth=depth, adg=adg, username=owner_username)
         flash('Deleted %s %s' % (name, task_name), 'success')
-        return redirect(url_for('web_scenario_detail', name=name))
+        return redirect(url_for('web_scenario_detail', owner=owner, name=name))
     return render_template('task_delete.html', form=form, name=name,
-                           task=task_name)
+                           task=task_name, owner=owner_username)

@@ -1,8 +1,10 @@
 from flaskext.wtf import Form, BooleanField, TextField, validators
 from flaskext.wtf import PasswordField
 from flaskext.wtf import TextAreaField, RadioField, SelectField, ValidationError
+from flaskext.login import current_user
 import ag_parser
 from ag_web.util import *
+from ag_web import models
 
 # Custom validator for depth+adg/sg
 class EmptyIfFieldNotMatches(object):
@@ -49,17 +51,15 @@ class ScenarioForm(Form):
             ag_parser.exploits.parseString(field.data)
         except Exception, e:
             raise ValidationError("Correct the following exploit pattern parse error: " + str(e))
-        print 'true'
     
     def validate_nm(form, field):
         try:
             ag_parser.networkmodel.parseString(field.data)
         except Exception, e:
             raise ValidationError("Correct the following netmodel parse error: " + str(e))
-        print 'true'
     
     def validate_name(form, field):
-        if ag_exists(field.data):
+        if ag_exists(field.data, username=current_user.username):
             raise ValidationError("Scenario named %s already exists. Choose a different name.")
 
 class GenerationTaskForm(Form):
@@ -93,3 +93,14 @@ class ConfirmForm(Form):
     Form validator to confirm stuff. Provides POST + CSRF.
     """
     pass
+
+class ShareForm(Form):
+    """
+    Form validator to confirm stuff. Provides POST + CSRF.
+    """
+    username = TextField('Username', [validators.Required(),
+                                      validators.Regexp(r'^\w+$')])
+
+    def validate_username(form, field):
+        if not models.User.load(field.data):
+            raise ValidationError("Specified user does not exist.")

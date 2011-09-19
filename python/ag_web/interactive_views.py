@@ -246,14 +246,14 @@ def web_scenario_share(owner, name):
     
     if form.validate_on_submit(): # TODO: prevent duplicates.
         username = form.username.data
-        destination_user = models.User.load(username)
-        if not username:
-            return make_response('User does not exist. Furthermore, the form ' \
-                                 'validator had a problem.', 500)
+        if username != '*':
+            destination_user = models.User.load(username)
+            if not destination_user:
+                return make_response('User does not exist. Furthermore, the ' \
+                                     'form validator had a problem.', 500)
         owner_user.shared_scenarios.append(dict(ag_name=name,
                                                 dest_username=username,
                                                 src_username=owner_username))
-        destination_user.store()
         owner_user.store()
         couchdb_manager.sync(app)
         flash('Scenario successfully shared.', 'success')

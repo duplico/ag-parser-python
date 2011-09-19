@@ -96,7 +96,6 @@ networkmodel.ignore(pythonStyleComment)
 
 def networkmodel_paramcheck(networkmodel):
     valid_assets = list(networkmodel.assets)
-    print valid_assets
     offender = False
     
     for fact in networkmodel.facts:

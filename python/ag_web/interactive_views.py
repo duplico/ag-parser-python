@@ -109,7 +109,7 @@ def web_scenario_detail(owner, name):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.available_scenarios():
+        if scenario_name not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -136,7 +136,7 @@ def web_scenario_initialstate(owner, name):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.available_scenarios():
+        if scenario_name not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -160,7 +160,7 @@ def web_task_download(owner, name, graph_type, fn, ext):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.available_scenarios():
+        if scenario_name not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -268,7 +268,7 @@ def web_create_generation_task(owner, name):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.available_scenarios():
+        if scenario_name not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -327,7 +327,7 @@ def web_task_restart(owner, name, task):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.available_scenarios():
+        if scenario_name not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -369,7 +369,7 @@ def web_task_delete(owner, name, task):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.available_scenarios():
+        if scenario_name not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner

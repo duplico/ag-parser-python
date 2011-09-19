@@ -98,9 +98,10 @@ class ShareForm(Form):
     """
     Form validator to confirm stuff. Provides POST + CSRF.
     """
-    username = TextField('Username', [validators.Required(),
-                                      validators.Regexp(r'^\w+$')])
+    username = TextField('Username (enter a * to share with all current and ' \
+                         'future users)', [validators.Required(),
+                                          validators.Regexp(r'^(\w+)|\*$')])
 
     def validate_username(form, field):
-        if not models.User.load(field.data):
+        if field.data != '*' and not models.User.load(field.data):
             raise ValidationError("Specified user does not exist.")

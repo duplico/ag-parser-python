@@ -9,16 +9,17 @@ import networkx as nx
 import ag_generator
 import ag_parser
 
-from ag_web import executor, running_futures, app, models
+from ag_web import executor, running_futures, app, models, couchdb_manager
 
 from functools import wraps
 from flask import request, Response
+from flaskext.login import current_user
 
 DEFAULT_USER = 'isec'
 
 def get_owned_ag_name(owner, name):
-    return u'%s/%s' % (owner, name)
-
+    return (owner, name)
+    
 def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -213,12 +214,15 @@ def get_ag_overview(username=DEFAULT_USER):
 def get_shared_ag_overview(username=DEFAULT_USER):
     user = models.User.load(username)
     assert user != None
-    print bool(user.accessible_scenarios)
-    if not user.accessible_scenarios:
-        return dict()
     ags = dict() # ags[owner][name] = tuple(done_depths, locked_depths, adg)
-    shared_ags = [scenario.split('/', 1) for scenario in user.accessible_scenarios]
+    shared_ags = user.available_scenarios()
     for owner, name in shared_ags:
+        if not ag_exists(name, username=owner): # if AG removed:
+            # TODO: maybe don't remove it?
+            # user.accessible_scenarios.remove(get_owned_ag_name(owner, name))
+            # user.store()
+            # couchdb_manager.sync(app)
+            continue
         ags.setdefault(owner, dict())
         ags[owner][name] = get_ag_tasks(name, username=owner)
     return ags

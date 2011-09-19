@@ -83,7 +83,7 @@ def register():
             return render_template("register.html", form=form)
         password_hash = unicode(generate_password_hash(password_raw))
         user = models.User(username=username, pw_hash=password_hash,
-                           email_address=email, accessible_scenarios=[])
+                           email_address=email, shared_scenarios=[])
         user.id = username
         user.store()
         couchdb_manager.sync(app)
@@ -109,7 +109,7 @@ def web_scenario_detail(owner, name):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.accessible_scenarios:
+        if unicode(scenario_name) not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -117,7 +117,6 @@ def web_scenario_detail(owner, name):
         owner_username = current_user.username
     
     overview = get_ag_overview(username=owner_username)
-    print overview
     if name in overview:
         ag = overview[name]
     else:
@@ -137,7 +136,7 @@ def web_scenario_initialstate(owner, name):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.accessible_scenarios:
+        if unicode(scenario_name) not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -161,7 +160,7 @@ def web_task_download(owner, name, graph_type, fn, ext):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.accessible_scenarios:
+        if unicode(scenario_name) not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -242,17 +241,20 @@ def web_scenario_share(owner, name):
         return make_response("Can't share scenarios that aren't yours.", 401)
     
     owner_username = owner
+    owner_user = models.User.load(owner_username)
     form = forms.ShareForm()
     
-    if form.validate_on_submit():
+    if form.validate_on_submit(): # TODO: prevent duplicates.
         username = form.username.data
         destination_user = models.User.load(username)
         if not username:
             return make_response('User does not exist. Furthermore, the form ' \
                                  'validator had a problem.', 500)
-        destination_user.accessible_scenarios.append(get_owned_ag_name(owner, 
-                                                                       name))
+        owner_user.shared_scenarios.append(dict(ag_name=name,
+                                                dest_username=username,
+                                                src_username=owner_username))
         destination_user.store()
+        owner_user.store()
         couchdb_manager.sync(app)
         flash('Scenario successfully shared.', 'success')
         return redirect(url_for('web_scenario_detail', owner=owner, name=name))
@@ -266,7 +268,7 @@ def web_create_generation_task(owner, name):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.accessible_scenarios:
+        if unicode(scenario_name) not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -325,7 +327,7 @@ def web_task_restart(owner, name, task):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.accessible_scenarios:
+        if unicode(scenario_name) not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner
@@ -367,7 +369,7 @@ def web_task_delete(owner, name, task):
     """
     if owner != current_user.username:
         scenario_name = get_owned_ag_name(owner, name)
-        if unicode(scenario_name) not in current_user.accessible_scenarios:
+        if unicode(scenario_name) not in current_user.available_scenarios():
             return make_response('This scenario (if it even exists) has not ' \
                                  'been shared with you.', 401)
         owner_username = owner

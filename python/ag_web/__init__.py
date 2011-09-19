@@ -85,3 +85,5 @@ import ag_web.models
 import ag_web.api_views
 import ag_web.interactive_views
 import ag_web.util
+
+couchdb_manager.sync(app)

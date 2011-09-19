@@ -217,6 +217,7 @@ def get_shared_ag_overview(username=DEFAULT_USER):
     ags = dict() # ags[owner][name] = tuple(done_depths, locked_depths, adg)
     shared_ags = user.available_scenarios()
     for owner, name in shared_ags:
+        if owner == username: continue
         if not ag_exists(name, username=owner): # if AG removed:
             # TODO: maybe don't remove it?
             # user.accessible_scenarios.remove(get_owned_ag_name(owner, name))

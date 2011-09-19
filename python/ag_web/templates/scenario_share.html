@@ -12,12 +12,20 @@
 
 {% block breadcrumb %}{{ super() }} : Scenario Share{% endblock %}
 
-{% block ltitle %}Instructions{% endblock %}
+{% block ltitle %}Currently shared with{% endblock %}
 
 {% block left %}
-<p>
-Share scenarios here.
-</p>
+<ul>
+{% for share in current_user.shared_scenarios %}
+  {% if share.ag_name == name %}
+    {% if share.dest_username != '*' %}
+      <li>{{share.dest_username}}</li>
+    {% else %}
+      <li><strong>Everyone</strong></li>
+    {% endif %}
+  {% endif %}
+{% endfor %}
+</ul>
 {% endblock %}
 
 {% block rtitle %}Share Scenario{% endblock %}
@@ -30,4 +38,7 @@ Share scenarios here.
   </dl>
   <input type="submit" value="Share {{ name }}">
 </form>
+
+<hr />
+
 {% endblock %}

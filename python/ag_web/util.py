@@ -145,7 +145,7 @@ def delete_scenario(name, username=DEFAULT_USER):
     
     # Unshare the scenario:
     shares_to_del = []
-    user = models.User.load(username)
+    user = models.load_user(username)
     assert user # TODO
     for share in user.shared_scenarios:
         if share['ag_name'] == name:
@@ -224,7 +224,7 @@ def get_ag_overview(username=DEFAULT_USER):
     return ags
 
 def get_shared_ag_overview(username=DEFAULT_USER):
-    user = models.User.load(username)
+    user = models.load_user(username)
     assert user != None
     ags = dict() # ags[owner][name] = tuple(done_depths, locked_depths, adg)
     shared_ags = user.available_scenarios()

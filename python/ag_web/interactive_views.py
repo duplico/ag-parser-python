@@ -59,7 +59,7 @@ def login():
     if form.validate_on_submit():
         username = form.username.data
         password_raw = form.password.data
-        user = models.User.load(username)
+        user = models.load_user(username)
         if not user or not user.matches_password(password_raw):
             flash("Unknown user or non-matching password.", 'error')
             return render_template("login.html", form=form)
@@ -73,10 +73,10 @@ def login():
 def register():
     form = forms.RegisterForm()
     if form.validate_on_submit():
-        username = form.username.data
+        username = form.username.data.lower()
         password_raw = form.password.data
         email = form.email.data
-        user = models.User.load(username)
+        user = models.load_user(username)
         if user:
             flash("User already exists by that name.", 'error')
             return render_template("register.html", form=form)
@@ -260,13 +260,13 @@ def web_scenario_share(owner, name):
         return make_response("Can't share scenarios that aren't yours.", 401)
     
     owner_username = owner
-    owner_user = models.User.load(owner_username)
+    owner_user = models.load_user(owner_username)
     form = forms.ShareForm()
     
     if form.validate_on_submit(): # TODO: prevent duplicates.
         username = form.username.data
         if username != '*':
-            destination_user = models.User.load(username)
+            destination_user = models.load_user(username)
             if not destination_user:
                 return make_response('User does not exist. Furthermore, the ' \
                                      'form validator had a problem.', 500)
@@ -289,7 +289,7 @@ def web_scenario_unshare(owner, name, dest_user):
         return make_response("Can't unshare scenarios that aren't yours.", 401)
     
     owner_username = owner
-    owner_user = models.User.load(owner_username)
+    owner_user = models.load_user(owner_username)
     
     matching_shares = []
     for share in owner_user.shared_scenarios:

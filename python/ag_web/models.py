@@ -46,5 +46,5 @@ couchdb_manager.add_document(User)
         
 @login_manager.user_loader
 def load_user(username):
-    """ Returns none if not found. """
-    return User.load(username)
+    """ Returns None if not found. """
+    return User.load(username.lower()) or User.load(username)

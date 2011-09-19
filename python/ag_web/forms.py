@@ -111,7 +111,7 @@ class ShareForm(Form):
                                           validators.Regexp(r'^(\w+)|\*$')])
 
     def validate_username(form, field):
-        if field.data != '*' and not models.User.load(field.data):
+        if field.data != '*' and not models.load_user(field.data):
             raise ValidationError("Specified user does not exist.")
-        if field.data == current_user.username:
+        if models.load_user(field.data) == current_user: # TODO: unneeded db hit
             raise ValidationError("You can't share with yourself.")

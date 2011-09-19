@@ -60,7 +60,7 @@ class ScenarioForm(Form):
     
     def validate_name(form, field):
         if ag_exists(field.data, username=current_user.username):
-            raise ValidationError("Scenario named %s already exists. Choose a different name.")
+            raise ValidationError("Scenario named %s already exists. Choose a different name." % field.data)
 
 class GenerationTaskForm(Form):
     """

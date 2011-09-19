@@ -88,6 +88,14 @@ class LoginForm(Form):
                                       validators.Regexp(r'^\w+$')])
     password = PasswordField('Password', [validators.Required()])
 
+class PasswordForm(Form):
+    current_password = PasswordField('Current password', [validators.Required()])
+    password = PasswordField('New password',
+                             [validators.Required(),
+                              validators.EqualTo('confirm',
+                                                 message='Passwords must match.')])
+    confirm  = PasswordField('Repeat new password')
+
 class ConfirmForm(Form):
     """
     Form validator to confirm stuff. Provides POST + CSRF.

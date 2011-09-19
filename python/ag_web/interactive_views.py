@@ -98,7 +98,27 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+@app.route('/interactive/auth/change_password/', methods=['GET', 'POST',])
+@login_required
+def change_password():
+    form = forms.PasswordForm()
+    if form.validate_on_submit():
+        new_password_raw = form.password.data
+        current_password_raw = form.current_password.data
 
+        if not current_user or not current_user.matches_password(current_password_raw):
+            flash("Incorrect current password.", 'error')
+            return render_template("change_password.html", form=form)
+        
+        
+        password_hash = unicode(generate_password_hash(new_password_raw))
+        current_user.pw_hash = password_hash
+        current_user.store()
+        couchdb_manager.sync(app)
+
+        flash("Password changed successfully.", 'success')
+        return redirect(url_for("web_landing"))
+    return render_template("change_password.html", form=form)
     
 @app.route('/interactive/attackgraphs/<owner>/<name>/', methods=['GET',])
 @login_required

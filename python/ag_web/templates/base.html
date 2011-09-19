@@ -34,14 +34,15 @@
       <img class="logo" src="{{ url_for('static', filename='image/isec_kludge.png') }}" alt="iSec logo" />
       </a></h1>
     </div>
-    <div id="headertext" class="span-15">
+    <div id="headertext" class="span-14">
     <h1>"Web RAVEN" or something...</h1>
     <h3 class="alt">{% block breadcrumb %}<a class="alt" href="{{ url_for('web_landing') }}">Attack Graph Generator</a> {% endblock %}</h3>
     </div>    
-    <div id="regbar" class="span-4 last">
+    <div id="regbar" class="span-5 last" style="text-align:right;">
     {% if not current_user.is_anonymous() %}
         Logged in as {{ current_user.username }} <br />
-        <a href="{{  url_for('logout') }}">Log out</a>
+        <a href="{{  url_for('logout') }}">Log out</a> |
+        <a href="{{ url_for('change_password') }}">Change Password</a>
         <hr />
     {% else %}
         Not logged in. <br />

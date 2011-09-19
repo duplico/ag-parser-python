@@ -142,6 +142,18 @@ def delete_scenario(name, username=DEFAULT_USER):
             if future.running():
                 assert future.cancel()
         del running_futures[username][name]
+    
+    # Unshare the scenario:
+    shares_to_del = []
+    user = models.User.load(username)
+    assert user # TODO
+    for share in user.shared_scenarios:
+        if share['ag_name'] == name:
+            shares_to_del.append(share)
+    for share in shares_to_del:
+        user.shared_scenarios.remove(share)
+    user.store()
+    couchdb_manager.sync(app)
     shutil.rmtree(directory)
 
 # Task management:

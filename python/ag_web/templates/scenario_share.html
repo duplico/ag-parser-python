@@ -10,22 +10,27 @@
   </dd>
 {% endmacro %}
 
-{% block breadcrumb %}{{ super() }} : Scenario Share{% endblock %}
+{% block breadcrumb %}{{ super() }} : Scenario Sharing{% endblock %}
 
 {% block ltitle %}Currently shared with{% endblock %}
 
 {% block left %}
-<ul>
+<dl>
 {% for share in current_user.shared_scenarios %}
   {% if share.ag_name == name %}
+    <dt>
     {% if share.dest_username != '*' %}
-      <li>{{share.dest_username}}</li>
+      {{share.dest_username}}
     {% else %}
-      <li><strong>Everyone</strong></li>
+      <strong>Everyone</strong>
     {% endif %}
+    </dt>
+    <dd>
+    <a href="{{ url_for('web_scenario_unshare', owner=owner, name=name, dest_user=share.dest_username) }}"><img alt="Unshare" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" style="vertical-align:middle;" />Unshare</a>
+    </dd>
   {% endif %}
 {% endfor %}
-</ul>
+</dl>
 {% endblock %}
 
 {% block rtitle %}Share Scenario{% endblock %}

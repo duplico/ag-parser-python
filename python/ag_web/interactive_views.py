@@ -35,7 +35,6 @@ def web_landing():
     ags = dict()
     ags[current_user.username] = get_ag_overview(username=current_user.username)
     ags.update(get_shared_ag_overview(username=current_user.username))
-    
     ag_render_list = []
     prev_owner = ''
     
@@ -259,7 +258,39 @@ def web_scenario_share(owner, name):
         flash('Scenario successfully shared.', 'success')
         return redirect(url_for('web_scenario_detail', owner=owner, name=name))
     return render_template('scenario_share.html', form=form, name=name, owner=owner_username)
+
+@app.route('/interactive/attackgraphs/<owner>/<name>/unshare/<dest_user>/', methods=['GET', 'POST'])
+@login_required
+def web_scenario_unshare(owner, name, dest_user):
+    """
+    Scenario unsharing form page.
+    """
+    if owner != current_user.username:
+        return make_response("Can't unshare scenarios that aren't yours.", 401)
     
+    owner_username = owner
+    owner_user = models.User.load(owner_username)
+    
+    matching_shares = []
+    for share in owner_user.shared_scenarios:
+        if share['dest_username'] == dest_user and share['ag_name'] == name:
+            matching_shares.append(share)
+    
+    if not matching_shares:
+        return make_response("That scenario is not shared with this user.", 404)
+    
+    form = forms.ConfirmForm()
+    
+    if form.validate_on_submit():
+        for share in matching_shares:
+            owner_user.shared_scenarios.remove(share)
+        owner_user.store()
+        couchdb_manager.sync(app)
+        flash('Scenario successfully unshared.', 'success')
+        return redirect(url_for('web_scenario_share', owner=owner, name=name))
+    return render_template('scenario_unshare.html', form=form, name=name,
+                           owner=owner_username, dest_user=dest_user)
+
 @app.route('/interactive/attackgraphs/<owner>/<name>/add/', methods=['GET', 'POST'])
 @login_required
 def web_create_generation_task(owner, name):
@@ -303,7 +334,7 @@ def web_create_generation_task(owner, name):
 @login_required
 def web_scenario_delete(owner, name):
     """
-    Attack graph task restart.
+    Attack graph scenario deletion.
     """
     if owner != current_user.username:
         return make_response('You may not delete scenarios that do not belong' \

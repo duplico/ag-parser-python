@@ -105,3 +105,5 @@ class ShareForm(Form):
     def validate_username(form, field):
         if field.data != '*' and not models.User.load(field.data):
             raise ValidationError("Specified user does not exist.")
+        if field.data == current_user.username:
+            raise ValidationError("You can't share with yourself.")

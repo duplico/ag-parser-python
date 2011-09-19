@@ -1,0 +1,20 @@
+{% extends 'confirm_base.html' %}
+
+{% block breadcrumb %}{{ super() }} : Unshare Scenario{% endblock %}
+
+{% block left %}
+<p>
+Unshare {{ name }} with {{ dest_user }}
+</p>
+{% endblock %}
+
+{% block rtitle %}Scenario Unsharing{% endblock %}
+
+{% block right %}
+  <p>
+    Please confirm that you wish to unshare "{{ name }}" from {{ dest_user }}.
+  </p>
+  {{ super() }}
+{% endblock %}
+
+{% block button %}Delete {{ name }} {{ task }}{% endblock %}">

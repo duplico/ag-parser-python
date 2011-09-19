@@ -20,7 +20,7 @@ initial state of the network.
   <a href="{{ url_for('web_create_generation_task', owner=owner, name=name) }}">
   Add new generation task</a>
   {% if owner == current_user.username %}
-  | <a href="{{ url_for('web_scenario_share', owner=owner, name=name) }}">Share scenario</a>
+  | <a href="{{ url_for('web_scenario_share', owner=owner, name=name) }}">Manage Sharing</a>
   {% endif %}
 </div>
 <table>

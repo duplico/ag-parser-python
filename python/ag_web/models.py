@@ -44,7 +44,11 @@ class User(Document, UserMixin):
 
 couchdb_manager.add_document(User)
         
-@login_manager.user_loader
 def load_user(username):
     """ Returns None if not found. """
     return User.load(username.lower()) or User.load(username)
+
+@login_manager.user_loader
+def loaduser(username):
+    """ Returns None if not found. """
+    return load_user(username)

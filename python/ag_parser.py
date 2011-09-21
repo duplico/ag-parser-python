@@ -10,6 +10,44 @@ from pyparsing import Word, Suppress, Literal, \
 
 real = Regex(r"[+-]?\d+(\.\d*)?").setParseAction(lambda t: float(t[0]))
 
+deriv = oneOf('-1 +1 1').setParseAction(lambda t: float(t[0]))
+
+extended_real = real | Literal('+oo') | Literal('-oo')
+
+interval = oneOf('[ (')('left_symbol') + extended_real('lower_limit') + \
+           Suppress(Literal(',')) + extended_real('upper_limit') + \
+           oneOf('] )')('right_symbol')
+
+def validate_interval(interval):
+    # Validation:
+    lower_limit = interval.lower_limit
+    upper_limit = interval.upper_limit
+    left_symbol = interval.left_symbol
+    right_symbol = interval.right_symbol
+    
+    if lower_limit == '+oo':
+        raise ParseFatalException('Illegal interval lower limit +oo')
+    if upper_limit == '-oo':
+        raise ParseFatalException('Illegal interval upper limit -oo')
+    if left_symbol == '[' and lower_limit == '-oo':
+        raise ParseFatalException('Closed interval limit [-oo not allowed, change to open (-oo')
+    if right_symbol == ']' and upper_limit == '+oo':
+        raise ParseFatalException('Closed interval limit +oo] not allowed, change to open +oo)')
+    if lower_limit != '-oo' and upper_limit != '+oo':
+        if lower_limit >= upper_limit:
+            raise ParseFatalException('Left interval limit must be less than right limit.')
+    emit_intervals = []
+    if left_symbol == '[':
+        emit_intervals.append(lower_limit)
+    if right_symbol == ']':
+        emit_intervals.append(upper_limit)
+    print type(lower_limit)
+    emit_intervals.append((lower_limit, upper_limit))
+    print emit_intervals
+    return emit_intervals
+
+interval.setParseAction(validate_interval)
+
 cpe_valid_characters = alphanums+"-.+_~%"
 cpe_atom = Word(cpe_valid_characters)
 plain_atom = Word(alphanums+"._~")
@@ -80,6 +118,11 @@ platform_fact = Literal('platform')('type') + colon + atom('asset') + comma + \
 assignfact = topology_assignfact | quality_assignfact | platform_fact
 relfact = topology_relfact | quality_relfact | platform_fact
 
+# Modes for hybrid exploits:
+mode = (topology_decl | quality_decl) + Suppress(Literal("'")) + \
+       Suppress(Literal('=')) + deriv('rate') + \
+       Literal('while')('guard') + interval('interval')
+
 # Network model parser
 
 assetlist = 'assets' + colon + Group(OneOrMore(atom + semi))('assets')
@@ -127,6 +170,14 @@ exploit = Optional(global_dec) + Optional(group_dec) + \
           'postconditions' + colon + \
           Group(OneOrMore(Group(factop)))('postconditions') + dot
 
+hybrid_exploit = Suppress('hybrid exploit') + atom('name') + lpar + \
+          Group(delimitedList(atom))('params') + rpar + Suppress('=') + \
+          'preconditions' + colon + \
+          Group(ZeroOrMore(Group(relfact)))('preconditions') + \
+          'postconditions' + colon + \
+          Group(ZeroOrMore(Group(factop)))('postconditions') + \
+          'modes' + colon + Group(OneOrMore(Group(mode) + semi))('modes') + dot
+
 def exploit_paramcheck(exploit):
     valid_parameters = list(exploit.params)
     offender = False
@@ -148,8 +199,9 @@ def exploit_paramcheck(exploit):
     return exploit
 
 exploit.setParseAction(exploit_paramcheck)
-    
-exploits = OneOrMore(Group(exploit))
+hybrid_exploit.setParseAction(exploit_paramcheck)
+
+exploits = OneOrMore(Group(exploit | hybrid_exploit))
 exploits.ignore(pythonStyleComment)
 
 # Parser for state predicates

@@ -550,6 +550,14 @@ def get_successor_state(network_state, attacks, exploit_dict):
                                            postcondition.name,
                                            value=postcondition.value,
                                            op=postcondition.operator)
+                if postcondition.direction == '<->':
+                    network_model.set_topology(
+                        binding_dict[postcondition.dest],
+                        binding_dict[postcondition.source],
+                        postcondition.name,
+                        value=postcondition.value,
+                        op=postcondition.operator
+                    )
             elif postcondition.type == 'quality':
                 network_model.set_quality(binding_dict[postcondition.asset],
                                           postcondition.name,
@@ -563,6 +571,12 @@ def get_successor_state(network_state, attacks, exploit_dict):
                 network_model.del_topology(binding_dict[postcondition.source],
                                            binding_dict[postcondition.dest],
                                            postcondition.name)
+                if postcondition.direction == '<->':
+                    network_model.del_topology(
+                        binding_dict[postcondition.dest],
+                        binding_dict[postcondition.source],
+                        postcondition.name
+                    )
             elif postcondition.type == 'quality':
                 network_model.del_quality(binding_dict[postcondition.asset],
                                           postcondition.name)

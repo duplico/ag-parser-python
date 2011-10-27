@@ -1,0 +1,41 @@
+global group(time) exploit car_depart(c,w)=
+    preconditions:
+        platform:c,cpe:/h:honda;
+        quality:c,compromised != true;
+        quality:w,wall=true;
+        quality:c,status=up;
+    postconditions:
+        update topology:c<->w,distance+=25;
+.
+
+global group(time) exploit car_approach(c,w)=
+    preconditions:
+        platform:c,cpe:/h:honda;
+        quality:c,compromised=true;
+        quality:w,wall=true;
+        quality:c,status=up;
+        topology:c<->w,distance>25;
+    postconditions:
+        update topology:c<->w,distance-=25;
+.
+
+global group(time) exploit car_crash(c,w)=
+    preconditions:
+        platform:c,cpe:/h:honda;
+        quality:c,compromised=true;
+        quality:w,wall=true;
+        quality:c,status=up;
+        topology:c<->w,distance<=25;
+    postconditions:
+        update topology:c<->w,distance:=0;
+        update quality:c,status=down;
+.
+
+exploit own_civic(c)=
+    preconditions:
+        platform:c,cpe:/h:honda:civic;
+        quality:c,compromised=false;
+        quality:c,status=up;
+    postconditions:
+        update quality:c,compromised=true;
+.

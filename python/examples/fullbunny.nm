@@ -1,0 +1,16 @@
+network model=
+    assets:
+        accord;
+        civic;
+        wall;
+    facts:
+        platform:civic,cpe:/h:honda:civic;
+        quality:civic,compromised=false;
+        topology:civic<->wall,distance:=50;
+        quality:civic,status=up;
+        platform:accord,cpe:/h:honda:accord;
+        quality:accord,compromised=false;
+        topology:accord<->wall,distance:=50;
+        quality:accord,status=up;
+        quality:wall,wall=true;
+.

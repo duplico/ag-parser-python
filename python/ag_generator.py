@@ -511,7 +511,7 @@ def get_pretty_attack(attack, exploit_dict, sep='\n'):
         return exploit_string
 
 def get_pretty_fact(fact):
-    print 'prettifying ' + repr(fact)
+    if DEBUG: print 'prettifying ' + repr(fact)
     if fact[0] == 'quality':
         return '%s.%s=%s' %\
                (fact[1], fact[2], fact[3])
@@ -550,6 +550,14 @@ def get_successor_state(network_state, attacks, exploit_dict):
                                            postcondition.name,
                                            value=postcondition.value,
                                            op=postcondition.operator)
+                if postcondition.direction == '<->':
+                    network_model.set_topology(
+                        binding_dict[postcondition.dest],
+                        binding_dict[postcondition.source],
+                        postcondition.name,
+                        value=postcondition.value,
+                        op=postcondition.operator
+                    )
             elif postcondition.type == 'quality':
                 network_model.set_quality(binding_dict[postcondition.asset],
                                           postcondition.name,
@@ -563,6 +571,12 @@ def get_successor_state(network_state, attacks, exploit_dict):
                 network_model.del_topology(binding_dict[postcondition.source],
                                            binding_dict[postcondition.dest],
                                            postcondition.name)
+                if postcondition.direction == '<->':
+                    network_model.del_topology(
+                        binding_dict[postcondition.dest],
+                        binding_dict[postcondition.source],
+                        postcondition.name
+                    )
             elif postcondition.type == 'quality':
                 network_model.del_quality(binding_dict[postcondition.asset],
                                           postcondition.name)
@@ -710,10 +724,10 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
             
             if DEBUG:
                 if type(attack) == tuple: # single attack
-                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                    if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
                     (attack, exploit_dict[attack[0]], successor_state)
                 else: # multiple attack
-                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                    if DEBUG: print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
                     (attack, '(group)', successor_state)
             
             # If the successor state does not exist, add it to the list to
@@ -935,38 +949,38 @@ def prune_reachability(adg, reached_nodes=None):
     reachable_nodes = [node for node in adg.nodes() if
                         node_fully_reachable(adg, node)
                         and node not in reached_nodes]
-    print 'Searching %i nodes: %s' % (len(reachable_nodes), str(reachable_nodes))
+    if DEBUG: print 'Searching %i nodes: %s' % (len(reachable_nodes), str(reachable_nodes))
     marked_new = False
     for node in reachable_nodes:
-        print 'Processing ' + str(node)
+        if DEBUG: print 'Processing ' + str(node)
         # Mark node as reached (processed)
         reached_nodes.add(node)
         # For every node dependent on this:
         del_edges = []
         for dependent in adg.edge[node]:
-            print ' Processing dependent node ' + str(dependent)
+            if DEBUG: print ' Processing dependent node ' + str(dependent)
             # Ignore it if it's reachable (we've either already processed it
             # or will do so later)
             if node_fully_reachable(adg, dependent):
-                print '  Already fully reachable'
+                if DEBUG: print '  Already fully reachable'
                 continue
-            print '  Not yet fully reachable, marking new'
+            if DEBUG: print '  Not yet fully reachable, marking new'
             # Otherwise, we're marking something new!
             marked_new = True
             # Mark (or increment) reachability on the dependent node:
             reachability_value = adg.node[dependent]['adg_reachable']
-            print '  Current reachability value ' + repr(reachability_value)
+            if DEBUG: print '  Current reachability value ' + repr(reachability_value)
             if adg.node[dependent]['adg_type'] == 'operator':
                 # increment
                 adg.node[dependent]['adg_reachable'] += 1
             else:
                 # true
                 adg.node[dependent]['adg_reachable'] = True
-            print '  New reachability value ' + repr(reachability_value)
+            if DEBUG: print '  New reachability value ' + repr(reachability_value)
         adg.remove_edges_from(del_edges)
     
     if marked_new: # Recursive case
-        print 'Recurring'
+        if DEBUG: print 'Recurring'
         return prune_reachability(adg, reached_nodes)
     
     # Otherwise, we're done marking reachable nodes, and it's time to
@@ -1018,16 +1032,16 @@ def prune_dependency_graph(adg):
     # For every condition that needs to be killed off:
     for cond in test_conds:
         del_nodes.append(cond)
-        print 'dealing with condition ' + str(cond)
+        if DEBUG: print 'dealing with condition ' + str(cond)
         # Find all its dependent OPERATORS or EXPLOITS:
         for dependent_node in adg.edge[cond]:
-            print 'found dependent node ' + str(dependent_node)
+            if DEBUG: print 'found dependent node ' + str(dependent_node)
             dependent_node_dict = adg.node[dependent_node]
             exploit = dependent_node
             # If the dependent node is an AND operator:
             if dependent_node_dict['adg_type'] == 'operator' and \
               dependent_node_dict['adg_data'] == 'and':
-                print 'It is an AND, with the following dependents: ' + \
+                if DEBUG: print 'It is an AND, with the following dependents: ' + \
                     str(adg.edge[dependent_node].keys())
                 # Follow the AND node's out edge to its exploit:
                 assert len(adg.edge[dependent_node].keys()) == 1
@@ -1041,9 +1055,9 @@ def prune_dependency_graph(adg):
               len([node for node in del_nodes if exploit in adg.edge[node]]):
                 # delete exploit and all its edges
                 del_nodes.append(exploit)
-    print 'Deleting nodes: ' + str(del_nodes)
+    if DEBUG: print 'Deleting nodes: ' + str(del_nodes)
     adg.remove_nodes_from(del_nodes)
-    print 'Recurring.'
+    if DEBUG: print 'Recurring.'
     return prune_dependency_graph(adg)
 
 def nsfactlist_from_nm(netmodel):
@@ -1115,7 +1129,7 @@ def build_attack_graph(nm_file, xp_file, depth, state_graph):
             get_attack_bindings(netmodel, exploit_dict), initial_network_state)
 
 def viz_ag(ag, file_prefix, outname, depth, write_states):
-    print 'Visualizing.'
+    if DEBUG: print 'Visualizing.'
     nx.write_dot(ag, outname)
     if write_states:
         stategraphs = []

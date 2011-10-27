@@ -37,22 +37,28 @@ new scenario."
 <tr><th>Name</th><th>Actions</th>
 <th>Completed Attack State Graphs</th>
 <th>Attack State Graphs in Progress</th><th>Attack Dependency Graph</th></tr>
-{% for name in ag_table %}
+{% for owner, name, show_owner in ag_render_list %}
+ {% if show_owner %}
+  <tr><th colspan="5">{% if owner == current_user.username %}Owned by you: {% else %}Shared from {{ owner }}:{% endif %}</th></tr>
+ {% endif %}
   <tr>
     <td>
-    <a href="{{ url_for('web_scenario_detail', name=name) }}">{{ name }}</a>
+    <a href="{{ url_for('web_scenario_detail', owner=owner, name=name) }}">{{ name }}</a>
     </td>
     <td class="buttonbank">
-    <a href="{{ url_for('web_scenario_detail', name=name) }}"><img alt="View scenario details" class="button" src="{{ url_for('static', filename='image/glass.png') }}" /></a>
-    <a href="{{ url_for('web_create_generation_task', name=name) }}"><img alt="Add generation task" class="button" src="{{ url_for('static', filename='image/plus_green.png') }}" /></a>
-    <a href="{{ url_for('web_scenario_delete', name=name) }}"><img alt="Delete scenario" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a>
+    <a href="{{ url_for('web_scenario_detail', owner=owner, name=name) }}"><img alt="View scenario details" class="button" src="{{ url_for('static', filename='image/glass.png') }}" /></a>
+    {% if owner == current_user.username %}
+        <a href="{{ url_for('web_scenario_share', owner=owner, name=name) }}"><img alt="Share scenario" class="button" src="{{ url_for('static', filename='image/menu_arrow.png') }}" /></a>
+    {% endif %}
+    <a href="{{ url_for('web_create_generation_task', owner=owner, name=name) }}"><img alt="Add generation task" class="button" src="{{ url_for('static', filename='image/plus_green.png') }}" /></a>
+    {% if owner == current_user.username %}<a href="{{ url_for('web_scenario_delete', owner=owner, name=name) }}"><img alt="Delete scenario" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a>{% endif %}
     </td>
     <td>
-    {{ ag_table[name].0|join(', ')|default('-', true) }}
+    {{ ag_table[owner][name].0|join(', ')|default('-', true) }}
     </td>
     <td>
-    {% if ag_table[name].1 %}
-      {% for depth in ag_table[name].1 %}
+    {% if ag_table[owner][name].1 %}
+      {% for depth in ag_table[owner][name].1 %}
         {{ depth }}
       {% endfor %}
     {% else %}
@@ -60,9 +66,9 @@ new scenario."
     {% endif %}
     </td>
     <td>
-    {% if ag_table[name].2 == 1 %}
+    {% if ag_table[owner][name].2 == 1 %}
       Working
-    {% elif ag_table[name].2 == 2 %}
+    {% elif ag_table[owner][name].2 == 2 %}
       Done
     {% else %}
       -

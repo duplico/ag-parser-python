@@ -16,7 +16,11 @@
 
 {% block left %}
 <p>
-Make generation tasks here.
+This form allows you to specify a generation task to begin. You may choose to
+create either an exploit dependency graph (attack dependency graph -- note that
+hybrid generation for these graph types is not currently supported), in which
+case no depth is needed; or a stateful attack graph, in which case you must
+specify a maximum depth for the generator to reach.
 </p>
 {% endblock %}
 

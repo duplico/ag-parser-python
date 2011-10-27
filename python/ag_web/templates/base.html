@@ -34,16 +34,28 @@
       <img class="logo" src="{{ url_for('static', filename='image/isec_kludge.png') }}" alt="iSec logo" />
       </a></h1>
     </div>
-    <div id="headertext" class="span-15">
-    <h1>"Web RAVEN" or something...</h1>
+    <div id="headertext" class="span-14">
+    <h1>RAVEN:wing</h1>
     <h3 class="alt">{% block breadcrumb %}<a class="alt" href="{{ url_for('web_landing') }}">Attack Graph Generator</a> {% endblock %}</h3>
+    </div>    
+    <div id="regbar" class="span-5 last" style="text-align:right;">
+    {% if not current_user.is_anonymous() %}
+        Logged in as {{ current_user.username }} <br />
+        <a href="{{  url_for('logout') }}">Log out</a> |
+        <a href="{{ url_for('change_password') }}">Change Password</a>
+        <hr />
+    {% else %}
+        Not logged in. <br />
+        <a href="{{  url_for('login') }}">Log in</a> |
+        <a href="{{  url_for('register') }}">Register</a>
+    {% endif %}
     </div>
     <hr />
     {% block flash %}
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for category, message in messages %}
-            <div class="first span-23 last {{ category }}">{{ message }}</div>
+            <div class="first span-23 last {% if category != "message" %}{{ category }}{% else %}error{% endif %}">{{ message }}</div>
             <hr />
           {% endfor %}
         {% endif %}

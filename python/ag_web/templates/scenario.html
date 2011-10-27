@@ -17,8 +17,11 @@ initial state of the network.
 
 {% block right %}
 <div id="add" class="append-bottom">
-  <a href="{{ url_for('web_create_generation_task', name=name) }}">
+  <a href="{{ url_for('web_create_generation_task', owner=owner, name=name) }}">
   Add new generation task</a>
+  {% if owner == current_user.username %}
+  | <a href="{{ url_for('web_scenario_share', owner=owner, name=name) }}">Manage Sharing</a>
+  {% endif %}
 </div>
 <table>
 <tr><th>Type</th><th>Depth</th><th>Actions</th>
@@ -28,8 +31,8 @@ initial state of the network.
           <td>Dependency Graph</td>
           <td>-</td>
           <td>
-          <a href="{{ url_for('web_task_restart', name=name, task="adg") }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
-          <a href="{{ url_for('web_task_delete', name=name, task="adg") }}"><img alt="Delete" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
+          <a href="{{ url_for('web_task_restart', owner=owner, name=name, task="adg") }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
+          <a href="{{ url_for('web_task_delete', owner=owner, name=name, task="adg") }}"><img alt="Delete" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
           <td>-</td>
           <td>In Progress</td>
         </tr>
@@ -38,13 +41,13 @@ initial state of the network.
           <td>Dependency Graph</td>
           <td>-</td>
           <td>
-          <a href="{{ url_for('web_task_restart', name=name, task="adg") }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
-          <a href="{{ url_for('web_task_delete', name=name, task="adg") }}"><img alt="Delete" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
+          <a href="{{ url_for('web_task_restart', owner=owner, name=name, task="adg") }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
+          <a href="{{ url_for('web_task_delete', owner=owner, name=name, task="adg") }}"><img alt="Delete" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
           <td>
-          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='pdf') }}">PDF</a> | 
-          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='png') }}">PNG</a> |
-          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='dot') }}">DOT</a> |
-          <a href="{{ url_for('web_task_download', name=name, graph_type='adg', fn=name+'_adg', ext='xml') }}">GraphML</a></td>
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='adg', fn=name+'_adg', ext='pdf') }}">PDF</a> | 
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='adg', fn=name+'_adg', ext='png') }}">PNG</a> |
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='adg', fn=name+'_adg', ext='dot') }}">DOT</a> |
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='adg', fn=name+'_adg', ext='xml') }}">GraphML</a></td>
           <td>Completed</td>
         </tr>
     {% endif %}
@@ -54,13 +57,13 @@ initial state of the network.
           <td>State Graph</td>
           <td>{{ depth }}</td>
           <td>
-          <a href="{{ url_for('web_task_restart', name=name, task=depth) }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
-          <a href="{{ url_for('web_task_delete', name=name, task=depth) }}"><img alt="Delete" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
+          <a href="{{ url_for('web_task_restart', owner=owner, name=name, task=depth) }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
+          <a href="{{ url_for('web_task_delete', owner=owner, name=name, task=depth) }}"><img alt="Delete" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" /></a></td>
           <td>
-          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='pdf') }}">PDF</a> | 
-          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='png') }}">PNG</a> |
-          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='dot') }}">DOT</a> |
-          <a href="{{ url_for('web_task_download', name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='xml') }}">GraphML</a></td>
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='pdf') }}">PDF</a> | 
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='png') }}">PNG</a> |
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='dot') }}">DOT</a> |
+          <a href="{{ url_for('web_task_download', owner=owner, name=name, graph_type='ag', fn=name+'_ag_'+depth, ext='xml') }}">GraphML</a></td>
           <td>Completed</td>
         </tr>
       {% endfor %}
@@ -71,7 +74,7 @@ initial state of the network.
           <td>State Graph</td>
           <td>{{ depth }}</td>
           <td>
-          <a href="{{ url_for('web_task_restart', name=name, task=depth) }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
+          <a href="{{ url_for('web_task_restart', owner=owner, name=name, task=depth) }}"><img alt="Regenerate" class="button" src="{{ url_for('static', filename='image/restart_256.png') }}" /></a>
           <img alt="Delete" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" />
           </td>
           <td>-</td>
@@ -100,6 +103,6 @@ initial state of the network.
 <hr />
 <div class="span-24 first last">
 <h2 class="caps">Initial State Graph</h2>
-<img class="bigimage" src="{{ url_for('web_scenario_initialstate', name=name) }}" />
+<img class="bigimage" src="{{ url_for('web_scenario_initialstate', owner=owner, name=name) }}" />
 </div>
 {% endblock %}

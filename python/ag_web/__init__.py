@@ -44,18 +44,46 @@
 # futures is backported from 3.2, depends on 'pip install futures'
 from concurrent import futures
 from flask import Flask
+from flaskext.couchdb import CouchDBManager
+from flaskext.bcrypt import bcrypt_init
+from flaskext.login import LoginManager
 
-# TODO: probably move this over to a Flask config setting if possible?
-MAX_WORKERS = 5
-AG_DATA_PATH = 'ag_web/webdata' # DO NOT SERVE FROM THIS PATH! TODO: mode xx0
+app = Flask(__name__)
+
+app.debug = True
+
+# Config
+try:
+    from ag_web_settings import config as local_config
+    app.config.update(local_config)
+except ImportError:
+    print 'Failed to import local configuration.'
+
+
+app.config.setdefault('MAX_WORKERS', 5)
+# DO NOT SERVE FROM THE FOLLOWING PATH! TODO: mode xx0
+app.config.setdefault('AG_DATA_PATH', 'ag_web/webdata')
+
+app.config.setdefault('COUCHDB_SERVER', 'http://localhost:5984/')
+app.config.setdefault('COUCHDB_DATABASE', 'ag_web')
+app.config.setdefault('DISABLE_AUTO_SYNCING', True)
 
 # Handle concurrency:
-executor = futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
+executor = futures.ThreadPoolExecutor(max_workers=app.config['MAX_WORKERS'])
 running_futures = dict()
 
-# Start the web application:
-app = Flask(__name__)
+# Set up flask specific stuff:
+login_manager = LoginManager()
+couchdb_manager = CouchDBManager(auto_sync=False)
+bcrypt_init(app)
 app.secret_key = '3D193C6B2B50A396393F4D42F90CB65F3475D9948E5D4290C4E48118FD99'
+couchdb_manager.setup(app)
+login_manager.setup_app(app)
+login_manager.login_view = 'login'
+
+import ag_web.models
 import ag_web.api_views
 import ag_web.interactive_views
 import ag_web.util
+
+couchdb_manager.sync(app)

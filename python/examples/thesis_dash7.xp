@@ -1,0 +1,65 @@
+exploit own_reader(a, r)=
+    preconditions:
+        platform:r,cpe:/h::VulnerableReader;
+        quality:r,status=up;
+        topology:a->r,connected_network;
+    postconditions:
+        insert topology:a->r,access_admin;
+.
+
+exploit deny_sleep(a, r, t)=
+    preconditions:
+        platform:r,cpe:/h::VulnerableReader;
+        quality:r,status=up;
+        
+        platform:t,cpe:/h::Tag;
+        quality:t,status=up;
+        quality:t,mode=sleep;
+        
+        topology:a->r,access_admin;
+        topology:r->t,connected_rfid;
+    postconditions:
+        update quality:t,mode=wake;
+.
+
+global group(time) exploit wake_power_dec(t)=
+    preconditions:
+        platform:t,cpe:/h::Tag;
+        quality:t,status=up;
+        quality:t,mode=wake;
+        quality:t,power>25;
+    postconditions:
+        update quality:t,power-=25;
+.
+
+global group(time) exploit sleep_power_dec(t)=
+    preconditions:
+        platform:t,cpe:/h::Tag;
+        quality:t,mode=sleep;
+        quality:t,status=up;
+        quality:t,power>10;
+    postconditions:
+        update quality:t,power-=10;
+.
+
+global group(time) exploit wake_power_die(t)=
+    preconditions:
+        platform:t,cpe:/h::Tag;
+        quality:t,mode=wake;
+        quality:t,status=up;
+        quality:t,power<=25;
+    postconditions:
+        update quality:t,power:=0;
+        update quality:t,status=down;
+.
+
+global group(time) exploit sleep_power_die(t)=
+    preconditions:
+        platform:t,cpe:/h::Tag;
+        quality:t,mode=sleep;
+        quality:t,status=up;
+        quality:t,power<=11;
+    postconditions:
+        update quality:t,power:=0;
+        update quality:t,status=down;
+.

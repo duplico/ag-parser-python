@@ -1,7 +1,10 @@
 from flaskext.wtf import Form, BooleanField, TextField, validators
+from flaskext.wtf import PasswordField
 from flaskext.wtf import TextAreaField, RadioField, SelectField, ValidationError
+from flaskext.login import current_user
 import ag_parser
 from ag_web.util import *
+from ag_web import models
 
 # Custom validator for depth+adg/sg
 class EmptyIfFieldNotMatches(object):
@@ -48,18 +51,16 @@ class ScenarioForm(Form):
             ag_parser.exploits.parseString(field.data)
         except Exception, e:
             raise ValidationError("Correct the following exploit pattern parse error: " + str(e))
-        print 'true'
     
     def validate_nm(form, field):
         try:
             ag_parser.networkmodel.parseString(field.data)
         except Exception, e:
             raise ValidationError("Correct the following netmodel parse error: " + str(e))
-        print 'true'
     
     def validate_name(form, field):
-        if ag_exists(field.data):
-            raise ValidationError("Scenario named %s already exists. Choose a different name.")
+        if ag_exists(field.data, username=current_user.username):
+            raise ValidationError("Scenario named %s already exists. Choose a different name." % field.data)
 
 class GenerationTaskForm(Form):
     """
@@ -71,8 +72,46 @@ class GenerationTaskForm(Form):
                       [EmptyIfFieldNotMatches('graph_type', 'sg'),
                        validators.NumberRange(min=1)])
 
+class RegisterForm(Form):
+    username = TextField('Username', [validators.Required(),
+                                      validators.Regexp(r'^\w+$')])
+    email = TextField('E-mail address', [validators.Required(),
+                                         validators.Email()])
+    password = PasswordField('Password',
+                             [validators.Required(),
+                              validators.EqualTo('confirm',
+                                                 message='Passwords must match.')])
+    confirm  = PasswordField('Repeat Password')
+
+class LoginForm(Form):
+    username = TextField('Username', [validators.Required(),
+                                      validators.Regexp(r'^\w+$')])
+    password = PasswordField('Password', [validators.Required()])
+
+class PasswordForm(Form):
+    current_password = PasswordField('Current password', [validators.Required()])
+    password = PasswordField('New password',
+                             [validators.Required(),
+                              validators.EqualTo('confirm',
+                                                 message='Passwords must match.')])
+    confirm  = PasswordField('Repeat new password')
+
 class ConfirmForm(Form):
     """
     Form validator to confirm stuff. Provides POST + CSRF.
     """
     pass
+
+class ShareForm(Form):
+    """
+    Form validator to confirm stuff. Provides POST + CSRF.
+    """
+    username = TextField('Username (enter a * to share with all current and ' \
+                         'future users)', [validators.Required(),
+                                          validators.Regexp(r'^(\w+)|\*$')])
+
+    def validate_username(form, field):
+        if field.data != '*' and not models.load_user(field.data):
+            raise ValidationError("Specified user does not exist.")
+        if models.load_user(field.data) == current_user: # TODO: unneeded db hit
+            raise ValidationError("You can't share with yourself.")

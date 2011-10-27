@@ -1,0 +1,49 @@
+{% extends 'scenario_base.html' %}
+
+{% macro render_field(field) %}
+  <dt>{{ field.label }}</dt>
+  <dd>
+  {% if field.errors %}
+    {% for error in field.errors %}<div class="error">{{ error }}</div>{% endfor %}
+  {% endif %}
+  {{ field(**kwargs)|safe }}
+  </dd>
+{% endmacro %}
+
+{% block breadcrumb %}{{ super() }} : Scenario Sharing{% endblock %}
+
+{% block ltitle %}Currently shared with{% endblock %}
+
+{% block left %}
+<dl>
+{% for share in current_user.shared_scenarios %}
+  {% if share.ag_name == name %}
+    <dt>
+    {% if share.dest_username != '*' %}
+      {{share.dest_username}}
+    {% else %}
+      <strong>Everyone</strong>
+    {% endif %}
+    </dt>
+    <dd>
+    <a href="{{ url_for('web_scenario_unshare', owner=owner, name=name, dest_user=share.dest_username) }}"><img alt="Unshare" class="button" src="{{ url_for('static', filename='image/x_red.png') }}" style="vertical-align:middle;" />Unshare</a>
+    </dd>
+  {% endif %}
+{% endfor %}
+</dl>
+{% endblock %}
+
+{% block rtitle %}Share Scenario{% endblock %}
+
+{% block right %}
+<form method="post" action="">
+  {{ form.csrf }}
+  <dl>
+  {{ render_field(form.username) }}
+  </dl>
+  <input type="submit" value="Share {{ name }}">
+</form>
+
+<hr />
+
+{% endblock %}

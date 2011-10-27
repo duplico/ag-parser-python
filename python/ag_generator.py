@@ -807,6 +807,93 @@ def generate_dependency_graph(exploit_dict, attack_bindings, initial_state):
     adg = prune_reachability(adg)
     return adg
 
+def generate_dependency_graph2(analysis_states, depth, exploit_dict, attack_bindings,
+                          attack_graph=None, next_label=0):
+    """
+    Recursively generate an attack graph, to a given depth.
+    
+    Parameters:
+        analysis_states -   Iterable of network state tuple-of-frozensets
+                            representing the states to be explored.
+        
+        depth -             Maximum "depth" to explore to (that is, how many
+                            iterations of the generation algorithm without
+                            running out of new states we need before we give up.
+        
+        exploit_dict -      Dictionary of exploit names (keys) and raw parsed
+                            representation of those exploits (values)
+        
+        attack_bindings -   Exhaustive list of (valid and invalid) ways to bind
+                            assets to exploit pattern parameters, like what's
+                            returned by the get_attack_bindings function.
+        
+        attack_graph -      A NetworkX MultiDiGraph representation of the
+                            attack graph so far.
+    """
+    # Check to see if we need to initialize the attack graph:
+    if not attack_graph:
+        attack_graph = nx.MultiDiGraph()
+    
+    # Base case (time to stop):
+    if len(analysis_states) == 0 or depth == 0:
+        return attack_graph
+    
+    # This will hold the new (not existing) states that succeed the states
+    # in analysis_states; on the next recursion these will be the new
+    # analysis_states.
+    successor_states = []
+
+    # For each state to be processed for successors:
+    for analysis_state in analysis_states:
+        if DEBUG: print "Analysis state: %s" % str(analysis_state)
+        
+        # Construct a mutable, easy-to-analyze NetworkModel of it:
+        analysis_model = NetworkModel(analysis_state)
+        
+        # Add it to the attack graph as a node if we need to (i.e. start state)
+        if hash(analysis_state) not in attack_graph:
+            attack_graph.add_node(hash(analysis_state), label=next_label,
+                                  state=analysis_state)
+            next_label+=1
+            state_hash_lookup[hash(analysis_state)] = analysis_state
+
+        # For each valid attack in that state:
+        for attack in get_attacks(analysis_model, exploit_dict,
+                                  attack_bindings):
+            # Generate the successor state:
+            successor_state = get_successor_state(analysis_state, attack,
+                                                  exploit_dict)
+            # If it didn't do anything (self loop -- generated the same state
+            # it started from), skip it and go on to the next attack.
+            if successor_state == analysis_state:
+                continue
+            
+            if DEBUG:
+                if type(attack) == tuple: # single attack
+                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                    (attack, exploit_dict[attack[0]], successor_state)
+                else: # multiple attack
+                    print "\nAttack: %s\n%s\n\nSuccessor state: %s" % \
+                    (attack, '(group)', successor_state)
+            
+            # If the successor state does not exist, add it to the list to
+            # be analyzed on the next iteration and the attack graph.
+            if hash(successor_state) in attack_graph:
+                pass
+            else:
+                state_hash_lookup[successor_state] = successor_state
+                successor_states.append(successor_state)
+                attack_graph.add_node(hash(successor_state), label=next_label,
+                                      state=successor_state)
+                next_label+=1
+            if DEBUG: print hash(analysis_state) in attack_graph, hash(successor_state) in attack_graph, attack_graph.node[hash(successor_state)]
+            # Add the state transition to the attack graph
+            attack_graph.add_edge(hash(analysis_state), hash(successor_state),
+                                  label=get_pretty_attack(attack, exploit_dict))
+    # Recur (wouldn't tail call optimization be nice?)
+    return generate_attack_graph(successor_states, depth-1, exploit_dict,
+                                 attack_bindings, attack_graph, next_label)
+
 def aggregate_topologies(adg):
     """
     Returns a new ADG with bidirectional topologies merged where valid.

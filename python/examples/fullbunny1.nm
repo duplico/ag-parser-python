@@ -1,0 +1,14 @@
+network model=
+    assets:
+        wall;
+        car0;
+    facts:
+        # Wall
+        quality:wall,wall=true;
+        # car0
+        platform:car0,cpe:/h:honda:civic;
+        quality:car0,compromised=false;
+        topology:car0<->wall,distance:=50;
+        quality:car0,status=up;
+
+.

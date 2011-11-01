@@ -1,0 +1,36 @@
+network model = 
+    assets :
+        attacker;
+        reader;
+        tag0;
+        tag1;
+        tag2;
+    facts :
+        # Reader:
+        platform:reader,cpe:/h::VulnerableReader;
+        quality:reader,status=up;
+        # Topologies:
+        topology:attacker -> reader,connected_network;
+
+        # Tag tag0:
+        platform:tag0,cpe:/h::Tag;
+        quality:tag0,status=up;
+        quality:tag0,power:=100;
+        quality:tag0,mode=sleep;
+        topology:reader -> tag0,connected_rfid;
+
+        # Tag tag1:
+        platform:tag1,cpe:/h::Tag;
+        quality:tag1,status=up;
+        quality:tag1,power:=100;
+        quality:tag1,mode=sleep;
+        topology:reader -> tag1,connected_rfid;
+
+        # Tag tag2:
+        platform:tag2,cpe:/h::Tag;
+        quality:tag2,status=up;
+        quality:tag2,power:=100;
+        quality:tag2,mode=sleep;
+        topology:reader -> tag2,connected_rfid;
+
+.

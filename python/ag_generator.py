@@ -690,6 +690,8 @@ def generate_attack_graph(analysis_states, depth, exploit_dict, attack_bindings,
     
     # Base case (time to stop):
     if len(analysis_states) == 0 or depth == 0:
+        if depth == 0:
+            print 'Maximum depth reached.'
         return attack_graph
     
     # This will hold the new (not existing) states that succeed the states
@@ -1128,9 +1130,10 @@ def build_attack_graph(nm_file, xp_file, depth, state_graph):
         return generate_dependency_graph(exploit_dict,
             get_attack_bindings(netmodel, exploit_dict), initial_network_state)
 
-def viz_ag(ag, file_prefix, outname, depth, write_states):
+def viz_ag(ag, file_prefix, outname, depth, write_graph, write_states):
     if DEBUG: print 'Visualizing.'
-    nx.write_dot(ag, outname)
+    if write_graph:
+        nx.write_dot(ag, outname)
     if write_states:
         stategraphs = []
         for node in ag.nodes_iter():
@@ -1152,7 +1155,7 @@ def viz_nm(nm_file):
     stategraph = network_model.get_state_graph('Initial')
     return stategraph
 
-def main(nm_file, xp_file, depth, state_graph=True):
+def main(nm_file, xp_file, depth, state_graph=True, viz_graph=True, viz_states=True):
     global ag
     ag = build_attack_graph(nm_file, xp_file, int(depth), state_graph)
     
@@ -1160,7 +1163,7 @@ def main(nm_file, xp_file, depth, state_graph=True):
         nm_file_name = os.path.split(nm_file)[-1]
         file_prefix = 'ag_' + os.path.splitext(nm_file_name)[0]
         outname = os.path.join(file_prefix, 'ag_depth%i.dot' % (depth,))
-        viz_ag(ag, file_prefix, outname, depth, True)
+        viz_ag(ag, file_prefix, outname, depth, viz_graph, viz_states)
     
 
 if __name__ == '__main__':
@@ -1168,6 +1171,8 @@ if __name__ == '__main__':
     
     # TODO: make this more self-documenting.
     parser.add_argument('--debug', action="store_true", dest="debug", default=False)
+    parser.add_argument('--no-viz-ag', action="store_false", dest="viz_ag", default=True)
+    parser.add_argument('--no-viz-states', action="store_false", dest="viz_states", default=True)
     parser.add_argument('-nm', action="store", dest="nm", required=True)
     parser.add_argument('-xp', action="store", dest="xp", required=True)
     
@@ -1177,4 +1182,4 @@ if __name__ == '__main__':
     
     args= parser.parse_args()
     DEBUG = args.debug
-    main(args.nm, args.xp, args.depth, not args.dep)
+    main(args.nm, args.xp, args.depth, not args.dep, args.viz_ag, args.viz_states)

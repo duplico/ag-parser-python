@@ -4,13 +4,18 @@ network model=
         civic;
         wall;
     facts:
+        # Civic
         platform:civic,cpe:/h:honda:civic;
         quality:civic,compromised=false;
         topology:civic<->wall,distance:=50;
         quality:civic,status=up;
+        
+        # Accord
         platform:accord,cpe:/h:honda:accord;
         quality:accord,compromised=false;
         topology:accord<->wall,distance:=50;
         quality:accord,status=up;
+        
+        # Wall
         quality:wall,wall=true;
 .
